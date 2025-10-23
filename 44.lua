@@ -9,7 +9,7 @@ getgenv().standList = {
 -- ИЗМЕНЕНИЕ: Уменьшена задержка при подборе предметов
 getgenv().waitUntilCollect = 0.2 --Change this if ur getting kicked a lot
 getgenv().autoRequiem = false --turn this on for auto requiem
-getgenv().NPCTimeOut = 30 --timeout for npc not spawning (increased for single server stability)
+getgenv().NPCTimeOut = 45 --timeout for npc not spawning (increased for single server stability)
 getgenv().HamonCharge = 90 --change if u want to charge hamon after every kill (around 90)
 -- getgenv().webhook = "https://discord.com/api/webhooks/1414918175413375006/J20Y41wt-303RDUCFlpQJnmuz2ihip4wx9uFC12Q4qFhmUwYlzcr8oNaWePsWyRrMYt1" -- ИЗМЕНЕНИЕ: Вебхук отключен
 
@@ -158,9 +158,7 @@ local function findItem(itemName)
         if item:FindFirstChild("MeshPart") and item.ProximityPrompt.ObjectText == itemName then
             if item.ProximityPrompt.MaxActivationDistance == 8 then
                 table.insert(ItemsDict["Items"], item.ProximityPrompt.ObjectText)
-                table.
-
-insert(ItemsDict["ProximityPrompt"], item.ProximityPrompt)
+                table.insert(ItemsDict["ProximityPrompt"], item.ProximityPrompt)
                 table.insert(ItemsDict["Position"], item.MeshPart.CFrame)
             else
                 print("FAKE?")
@@ -208,8 +206,8 @@ local function useItem(aItem, amount)
         firesignal(LocalPlayer.PlayerGui:WaitForChild("DialogueGui").Frame.ClickContinue.MouseButton1Click)
         firesignal(LocalPlayer.PlayerGui:WaitForChild("DialogueGui").Frame.Options:WaitForChild("Option1").TextButton.MouseButton1Click)
         firesignal(LocalPlayer.PlayerGui:WaitForChild("DialogueGui").Frame.ClickContinue.MouseButton1Click)
- repeat task.wait() until LocalPlayer.PlayerGui:WaitForChild("DialogueGui").Frame.DialogueFrame.Frame.Line001.Container.Group001.Text == "You"
- firesignal(LocalPlayer.PlayerGui:WaitForChild("DialogueGui").Frame.ClickContinue.MouseButton1Click)
+        repeat task.wait() until LocalPlayer.PlayerGui:WaitForChild("DialogueGui").Frame.DialogueFrame.Frame.Line001.Container.Group001.Text == "You"
+        firesignal(LocalPlayer.PlayerGui:WaitForChild("DialogueGui").Frame.ClickContinue.MouseButton1Click)
     end
 end
 
@@ -279,7 +277,7 @@ local function getitem(item, itemIndex)
                     repeat
                         firesignal(button.MouseEnter)
                         firesignal(button.MouseButton1Up)
-firesignal(button.MouseButton1Click)
+                        firesignal(button.MouseButton1Click)
                         firesignal(button.Activated)
                         task.wait()
                     until not LocalPlayer.PlayerGui:FindFirstChild("ScreenGui")
@@ -361,6 +359,7 @@ local function storyDialogue()
     
     for counter = 1, 18, 1 do
        RemoteEvent:FireServer("EndDialogue", {["NPC"] = "Storyline".. " " .. Quest["Storyline"][counter],["Dialogue"] = Quest["Dialogue"][counter],["Option"] = "Option1"})
+       task.wait(0.1) -- ИЗМЕНЕНИЕ: Добавлена задержка для предотвращения спама RemoteEvent
     end
 end
 
@@ -428,8 +427,7 @@ local function killNPC(npcName, playerDistance, dontDestroyOnKill, extraParamete
     end
 
     local function BlockBreaker()
-        if not NPC or NPC.
-Parent == nil then
+        if not NPC or NPC.Parent == nil then
             return
         end
     
@@ -463,7 +461,7 @@ Parent == nil then
     end)
 
     while beingTargeted do
-        task.wait()
+        task.wait(0.1) -- ИЗМЕНЕНИЕ: Добавлена задержка в цикле для rate-limit
         if not NPC:FindFirstChild("HumanoidRootPart") then
             deadCheck:Disconnect()
             beingTargeted = false
@@ -490,6 +488,7 @@ local function checkPrestige(level, prestige)
         "`, to `Prestige " .. tostring(prestige + 1) .. ", Level 1!`"
         )
         endDialogue("Prestige", "Dialogue2", "Option1")
+        task.wait(5) -- ИЗМЕНЕНИЕ: Пауза после престижа для обновления сервера
         return true
     else
         return false
@@ -571,7 +570,7 @@ local function autoStory()
         -- Если нужно, можно добавить альтернативный фарм здесь, но по запросу вырезано
     end
         
-    while #questPanel:GetChildren() < 2 and repeatCount < 1000 do
+    while #questPanel:GetChildren() < 2 and repeatCount < 2000 do -- ИЗМЕНЕНИЕ: Увеличен лимит, но с проверкой прогресса
         if not questPanel:FindFirstChild("Take down 3 vampires") then
             SendWebhook("Account: " .. LocalPlayer.Name .. "`\nTook around: `".. (tick() - lastTick).. " seconds to complete a quest")
             lastTick = tick()
@@ -580,12 +579,20 @@ local function autoStory()
     
         LocalPlayer.QuestsRemoteFunction:InvokeServer({[1] = "ReturnData"})
         storyDialogue()
-        task.wait(0.01)
+        task.wait(0.5) -- ИЗМЕНЕНИЕ: Увеличена задержка в цикле для предотвращения спама
         repeatCount = repeatCount + 1
+        
+        -- ИЗМЕНЕНИЕ: Брейк если слишком много итераций без прогресса
+        if repeatCount % 500 == 0 then
+            print("Quest loop warning: " .. repeatCount .. " iterations, checking progress...")
+            if #questPanel:GetChildren() == 0 then
+                break
+            end
+        end
     end
     
 
-    if repeatCount >= 1000 then
+    if repeatCount >= 2000 then
         -- ИЗМЕНЕНИЕ: Рестарт вместо хопа
         print("Quest loop timed out, restarting autoStory...")
         task.wait(10)
@@ -726,18 +733,18 @@ if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
         -- Эта часть теперь обрабатывается новым кодом в начале autoStory()
         if Character:FindFirstChild("FocusCam") then
             Character.FocusCam:Destroy()
-   SendWebhook(
-            "**Prestige 3, Level 50 reached!**" ..
-            "\nTime: `" .. (tick() - Data["Time"])/60 .. " minutes or " .. (tick() - Data["Time"])/3600 .. " hours`" ..
-            "\nFrom: `Prestige: ".. Data["Prestige"]  .. ", Level " .. Data["Level"] .. "`" ..
-            "\nStand: `" .. LocalPlayer.PlayerStats.Stand.Value .. "`" ..
-            "\nSpec: `" .. LocalPlayer.PlayerStats.Spec.Value .. "`" ..
-            "\nAccount: `" .. LocalPlayer.Name .. "`"
-        )
-           pcall(function()
-               delfile("AutoPres3_"..LocalPlayer.Name..".txt")
-            end)
-  end
+       SendWebhook(
+                "**Prestige 3, Level 50 reached!**" ..
+                "\nTime: `" .. (tick() - Data["Time"])/60 .. " minutes or " .. (tick() - Data["Time"])/3600 .. " hours`" ..
+                "\nFrom: `Prestige: ".. Data["Prestige"]  .. ", Level " .. Data["Level"] .. "`" ..
+                "\nStand: `" .. LocalPlayer.PlayerStats.Stand.Value .. "`" ..
+                "\nSpec: `" .. LocalPlayer.PlayerStats.Spec.Value .. "`" ..
+                "\nAccount: `" .. LocalPlayer.Name .. "`"
+            )
+               pcall(function()
+                   delfile("AutoPres3_"..LocalPlayer.Name..".txt")
+                end)
+      end
 
 
 
@@ -778,18 +785,18 @@ if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
         -- Эта часть теперь обрабатывается новым кодом в начале autoStory()
         if Character:FindFirstChild("FocusCam") then
             Character.FocusCam:Destroy()
-   SendWebhook(
-            "**Prestige 3, Level 50 reached!**" ..
-            "\nTime: `" .. (tick() - Data["Time"])/60 .. " minutes or " .. (tick() - Data["Time"])/3600 .. " hours`" ..
-            "\nFrom: `Prestige: ".. Data["Prestige"]  .. ", Level " .. Data["Level"] .. "`" ..
-            "\nStand: `" .. LocalPlayer.PlayerStats.Stand.Value .. "`" ..
-            "\nSpec: `" .. LocalPlayer.PlayerStats.Spec.Value .. "`" ..
-            "\nAccount: `" .. LocalPlayer.Name .. "`"
-        )
-           pcall(function()
-               delfile("AutoPres3_"..LocalPlayer.Name..".txt")
-            end)
-  end
+       SendWebhook(
+                "**Prestige 3, Level 50 reached!**" ..
+                "\nTime: `" .. (tick() - Data["Time"])/60 .. " minutes or " .. (tick() - Data["Time"])/3600 .. " hours`" ..
+                "\nFrom: `Prestige: ".. Data["Prestige"]  .. ", Level " .. Data["Level"] .. "`" ..
+                "\nStand: `" .. LocalPlayer.PlayerStats.Stand.Value .. "`" ..
+                "\nSpec: `" .. LocalPlayer.PlayerStats.Spec.Value .. "`" ..
+                "\nAccount: `" .. LocalPlayer.Name .. "`"
+            )
+               pcall(function()
+                   delfile("AutoPres3_"..LocalPlayer.Name..".txt")
+                end)
+      end
     end
 end
 
@@ -845,8 +852,7 @@ LocalPlayer.CharacterAdded:Connect(function()
     task.wait(1)
     for _, child in pairs(LocalPlayer.Character:GetDescendants()) do
         if child:IsA("BasePart") and child.CanCollide == true then
-            child.
-CanCollide = false
+            child.CanCollide = false
         end
     end
 end)
