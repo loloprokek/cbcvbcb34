@@ -565,71 +565,10 @@ local function autoStory()
     end
     
 
+    -- ИЗМЕНЕНИЕ: Блок покупки Hamon и фарма Zeppeli's Hat полностью удалён. Если Spec == "None", продолжаем без spec (адаптация: пропускаем, фарм без Hamon)
     if LocalPlayer.PlayerStats.Spec.Value == "None" and LocalPlayer.PlayerStats.Level.Value >= 25 then
-        local function collectAndSell(toolName, amount)
-            farmItem(toolName, amount)
-LocalPlayer.Character.Humanoid:EquipTool(LocalPlayer.Backpack:FindFirstChild(toolName))
-            endDialogue("Merchant", "Dialogue5", "Option2")
-        end
-        
-        if not LocalPlayer.Backpack:FindFirstChild("Zeppeli's Hat") then
-            SendWebhook("Farming Caesar's Headband to purchase `Hamon`")
-            task.wait(1) 
-            farmItem("Zeppeli's Hat", 1)
-        end
-
-        if LocalPlayer.PlayerStats.Money.Value <= 10000 then
-            print("WHERE DID THE MONEY GO FOR HAMON?")
-            SendWebhook("Collecting $10000 for `Hamon`")
-            collectAndSell("Mysterious Arrow", 5)
-            collectAndSell("Rokakaka", 5)
-            collectAndSell("Diamond", 3)
-            collectAndSell("Steel Ball", 3)
-            collectAndSell("Quinton's Glove", 2)
-            collectAndSell("Pure Rokakaka", 1)
-            collectAndSell("Ribcage Of The Saint's Corpse", 1)
-            collectAndSell("Ancient Scroll", 2)
-            collectAndSell("Clackers", 2)
-            collectAndSell("Caesar's headband", 2)
-        end
-
-        if LocalPlayer.Backpack:FindFirstChild("Zeppeli's Hat") then
-            SendWebhook("Buying `Hamon`")
-             LocalPlayer.Character.Humanoid:EquipTool(LocalPlayer.Backpack:FindFirstChild("Zeppeli's Hat"))
-            game.Players.LocalPlayer.Character.RemoteEvent:FireServer("PromptTriggered", game.ReplicatedStorage.NewDialogue:FindFirstChild("Lisa Lisa"))
-            repeat
-              game:GetService("VirtualInputManager"):SendMouseButtonEvent(0,8,0, true, nil, 1)
-                 task.wait(0.05)
-            until game.Players.LocalPlayer.PlayerGui:FindFirstChild("DialogueGui")
-            if game.Players.LocalPlayer.PlayerGui:FindFirstChild("DialogueGui") then
-            repeat
-            game:GetService("VirtualInputManager"):SendMouseButtonEvent(0,8,0, true, nil, 1)
-            task.wait(0.05)
-            until game.Players.LocalPlayer.PlayerGui:FindFirstChild("DialogueGui").Frame.Options:FindFirstChild("Option1")
-            end
-            firesignal(game.Players.LocalPlayer.PlayerGui:FindFirstChild("DialogueGui").Frame.Options.Option1.TextButton.MouseButton1Click)
-            repeat
-            firesignal(game.Players.LocalPlayer.PlayerGui:FindFirstChild("DialogueGui").Frame.ClickContinue.MouseButton1Click)
-            task.wait(0.05)
-            until game.Players.LocalPlayer.PlayerGui:FindFirstChild("DialogueGui").Frame.Options:FindFirstChild("Option1")
-            if game.Players.LocalPlayer.PlayerGui:FindFirstChild("DialogueGui").Frame.Options:FindFirstChild("Option1") then
-             firesignal(game.Players.LocalPlayer.PlayerGui:FindFirstChild("DialogueGui").Frame.Options.Option1.TextButton.MouseButton1Click)
-            end
-            repeat
-            firesignal(game.Players.LocalPlayer.PlayerGui:FindFirstChild("DialogueGui").Frame.ClickContinue.MouseButton1Click)
-            task.wait(0.05)
-            until game.Players.LocalPlayer.PlayerGui:FindFirstChild("DialogueGui").Frame.Options:FindFirstChild("Option1")
-            if game.Players.LocalPlayer.PlayerGui:FindFirstChild("DialogueGui").Frame.Options:FindFirstChild("Option1") then
-            firesignal(game.Players.LocalPlayer.PlayerGui:FindFirstChild("DialogueGui").Frame.Options.Option1.TextButton.MouseButton1Click)
-            end
-            task.wait(10)
-            autoStory()
-        else
-            -- ИЗМЕНЕНИЕ: Повторная попытка фарма вместо хопа
-            farmItem("Zeppeli's Hat", 1)
-            task.wait(5)
-            autoStory()
-        end
+        print("Spec отсутствует, пропускаем покупку Hamon и продолжаем прогресс")
+        -- Если нужно, можно добавить альтернативный фарм здесь, но по запросу вырезано
     end
         
     while #questPanel:GetChildren() < 2 and repeatCount < 1000 do
@@ -669,7 +608,7 @@ if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
     
         farmItem("Rokakaka", 25)
         farmItem("Mysterious Arrow", 25)
-  farmItem("Zeppeli's Hat", 1)
+        -- ИЗМЕНЕНИЕ: Удалён farmItem("Zeppeli's Hat", 1)
 
         if countItems("Mysterious Arrow") >= 25 and countItems("Rokakaka") >= 25 then
             print("MAX ARROW AND ROKA, GOT")
@@ -734,7 +673,7 @@ if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
             collectAndSell("Ribcage Of The Saint's Corpse", 1)
             collectAndSell("Ancient Scroll", 2)
             collectAndSell("Clackers", 2)
-            collectAndSell("Caesar's headband", 2)
+            -- ИЗМЕНЕНИЕ: Удалён collectAndSell("Caesar's headband", 2)
         end
         autoStory()
 
@@ -804,6 +743,23 @@ if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
 
     elseif questPanel:FindFirstChild("Take down 3 vampires") and LocalPlayer.PlayerStats.Spec.Value ~= "None" and LocalPlayer.PlayerStats.Level.Value >= 25 and LocalPlayer.PlayerStats.Level.Value ~= 50 then
         getgenv().HamonCharge = 10
+        local function vampire()
+            LocalPlayer.Character.PrimaryPart.CFrame = workspace.Living:FindFirstChild("Vampire").HumanoidRootPart.CFrame - Vector3.new(0, 15, 0)
+            if not questPanel:FindFirstChild("Take down 3 vampires") then
+                if (tick() - lastTick) >= 5 then
+                    SendWebhook("Account: " .. LocalPlayer.Name .. "`\nTook around: `".. (tick() - lastTick).. " seconds to complete `Vampire Quest`")
+                    lastTick = tick()
+                end
+                endDialogue("William Zeppeli", "Dialogue4", "Option1")
+            end
+        end
+
+        killNPC("Vampire", 15, false, vampire)
+        autoStory()
+
+    -- ИЗМЕНЕНИЕ: Добавлена обработка для вампиров без spec (адаптация: фарм без Hamon, если spec none)
+    elseif questPanel:FindFirstChild("Take down 3 vampires") and LocalPlayer.PlayerStats.Spec.Value == "None" and LocalPlayer.PlayerStats.Level.Value >= 25 and LocalPlayer.PlayerStats.Level.Value ~= 50 then
+        print("Spec отсутствует, фармим вампиров без Hamon")
         local function vampire()
             LocalPlayer.Character.PrimaryPart.CFrame = workspace.Living:FindFirstChild("Vampire").HumanoidRootPart.CFrame - Vector3.new(0, 15, 0)
             if not questPanel:FindFirstChild("Take down 3 vampires") then
