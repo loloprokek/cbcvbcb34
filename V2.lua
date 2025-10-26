@@ -35,6 +35,7 @@ local RemoteFunction, RemoteEvent = Character.RemoteFunction, Character.RemoteEv
 local HRP = Character.PrimaryPart
 local part
 local dontTPOnDeath = true
+local initialResetPending = true -- [[ НОВЫЙ ФЛАГ ДЛЯ ПЕРВОГО РЕСЕТА ]]
 
 -- ИЗМЕНЕНИЕ: Скрипт не будет останавливаться при Lvl 50, если денег меньше 250к
 if LocalPlayer.PlayerStats.Level.Value == 50 and LocalPlayer.PlayerStats.Money.Value >= 300000 then 
@@ -57,6 +58,15 @@ end
 if LocalPlayer.PlayerGui:FindFirstChild("LoadingScreen") then
     LocalPlayer.PlayerGui:FindFirstChild("LoadingScreen"):Destroy()
 end
+
+-- [[ НАЧАЛО: ИЗМЕНЕНИЕ ПО ПРОСЬБЕ ПОЛЬЗОВАТЕЛЯ - ПРИНУДИТЕЛЬНЫЙ РЕСЕТ ]]
+print("[SCRIPT] Загрузочный экран пропущен. Ожидание 5 секунд для ресета...")
+task.wait(5)
+print("[SCRIPT] Инициация ресета персонажа для синхронизации с сервером...")
+pcall(function()
+    LocalPlayer.Character.Humanoid.Health = 0
+end)
+-- [[ КОНЕЦ: ИЗМЕНЕНИЕ ПО ПРОСЬБЕ ПОЛЬЗОВАТЕЛЯ ]]
 
 task.spawn(function()
     if game.Lighting:WaitForChild("DepthOfField", 10) then
@@ -885,10 +895,22 @@ end)
 
 game.Workspace.Living.ChildAdded:Connect(function(character)
     if character.Name == LocalPlayer.Name then
+
+        -- [[ НАЧАЛО: ИЗМЕНЕНИЕ ПО ПРОСЬБЕ ПОЛЬЗОВАТЕЛЯ - ОБРАБОТКА ПЕРВОГО РЕСЕТА ]]
+        if initialResetPending then
+            initialResetPending = false -- Сбрасываем флаг, чтобы это сработало только один раз
+            print("[SCRIPT] Первичный ресет завершен. Запуск autoStory()...")
+            task.wait(1) -- Небольшая задержка на прогрузку
+            autoStory() -- ЗАПУСКАЕМ ГЛАВНУЮ ЛОГИКУ ЗДЕСЬ
+            return -- Выходим, чтобы НЕ телепортироваться
+        end
+        -- [[ КОНЕЦ: ИЗМЕНЕНИЕ ПО ПРОСЬБЕ ПОЛЬЗОВАТЕЛЯ ]]
+
         -- ИЗМЕНЕНИЕ: Не телепортируемся при Lvl 50, если не достигли 250к
         if LocalPlayer.PlayerStats.Level.Value == 50 and LocalPlayer.PlayerStats.Money.Value < 300000 then
             print("Died at Lvl 50, continuing farm...")
             -- autoStory() будет вызван снова при респауне персонажа
+            autoStory() -- ПЕРЕЗАПУСКАЕМ ФАРМ
         elseif LocalPlayer.PlayerStats.Level.Value == 50 then
             print("didnt reconnect")
         else
@@ -906,12 +928,11 @@ LocalPlayer.PlayerStats.Level:GetPropertyChangedSignal("Value"):Connect(function
     -- SendWebhook("Account: `" .. LocalPlayer.Name .. "`\nNew level: `" .. LocalPlayer.PlayerStats.Level.Value .. "`\nCurrent prestige: `" .. LocalPlayer.PlayerStats.Prestige.Value .. "`")
 end)
 
-LocalPlayer.CharacterAdded:Connect(function()
+LocalPlayer.CharacterAdded:Connect(function(newCharacter)
     task.wait(1)
-    for _, child in pairs(LocalPlayer.Character:GetDescendants()) do
+    for _, child in pairs(newCharacter:GetDescendants()) do
         if child:IsA("BasePart") and child.CanCollide == true then
-            child.
-CanCollide = false
+            child.CanCollide = false
         end
     end
 end)
@@ -920,5 +941,4 @@ hookfunction(workspace.Raycast, function() -- noclip bypass
     return
 end)
 
-autoStory()
-
+-- autoStory() -- [[ УДАЛЕНО ]] БОЛЬШЕ НЕ ЗАПУСКАЕМ ЗДЕСЬ, ЗАПУСК ПРОИЗОЙДЕТ ПОСЛЕ ПЕРВОГО РЕСЕТА
