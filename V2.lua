@@ -54,7 +54,7 @@ print("Xenon V3: Экран загрузки пройден.")
 
 -- 2. Ожидание 5 секунд
 print("Xenon V3: Ожидание 5 секунд перед сбросом...")
-task.wait(5)
+task.wait(10)
 
 -- 3. Сброс персонажа (килл)
 print("Xenon V3: Сброс персонажа для синхронизации...")
@@ -998,4 +998,5 @@ hookfunction(workspace.Raycast, function() -- noclip bypass
 end)
 
 autoStory()
+
 
