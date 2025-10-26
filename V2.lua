@@ -1,3 +1,79 @@
+-- [НАЧАЛО] Новый код для сброса и синхронизации
+print("Xenon V3: Ожидание загрузки игры...")
+
+local LocalPlayer
+local Character
+local RemoteEvent
+local RemoteFunction
+
+-- Цикл для надежного получения Player, Character и Remotes
+while true do
+    LocalPlayer = game:GetService("Players").LocalPlayer
+    if LocalPlayer then
+        Character = LocalPlayer.Character
+        if Character then
+            -- Ждем, пока Character полностью прогрузится (WaitForChild безопаснее)
+            local foundRE = Character:WaitForChild("RemoteEvent", 5)
+            local foundRF = Character:WaitForChild("RemoteFunction", 5)
+            
+            if foundRE and foundRF then
+                -- Успех! Сохраняем и выходим из цикла
+                RemoteEvent = foundRE
+                RemoteFunction = foundRF
+                print("Xenon V3: Персонаж и Remotes найдены.")
+                break -- Выход из цикла while true
+            else
+                print("Xenon V3: Персонаж есть, но RemoteEvent/RemoteFunction не найдены. Повтор...")
+            end
+        else
+            print("Xenon V3: Игрок есть, но персонаж (Character) еще не загружен. Ожидание...")
+        end
+    else
+        print("Xenon V3: Игрок (LocalPlayer) еще не загружен. Ожидание...")
+    end
+    task.wait(1) -- Ждем 1 секунду перед следующей попыткой
+end
+
+-- Теперь у нас должны быть LocalPlayer, Character, RemoteEvent, RemoteFunction
+print("Xenon V3: Обход экрана загрузки...")
+
+-- 1. Логика скипа экрана (скопировано из оригинального скрипта)
+if not LocalPlayer.PlayerGui:FindFirstChild("HUD") then
+    print("Xenon V3: Форсируем HUD...")
+    local HUD = game:GetService("ReplicatedStorage").Objects.HUD:Clone()
+    HUD.Parent = LocalPlayer.PlayerGui
+end
+RemoteEvent:FireServer("PressedPlay")
+if LocalPlayer.PlayerGui:FindFirstChild("LoadingScreen1") then
+    LocalPlayer.PlayerGui:FindFirstChild("LoadingScreen1"):Destroy()
+end
+if LocalPlayer.PlayerGui:FindFirstChild("LoadingScreen") then
+    LocalPlayer.PlayerGui:FindFirstChild("LoadingScreen"):Destroy()
+end
+print("Xenon V3: Экран загрузки пройден.")
+
+-- 2. Ожидание 5 секунд
+print("Xenon V3: Ожидание 5 секунд перед сбросом...")
+task.wait(5)
+
+-- 3. Сброс персонажа (килл)
+print("Xenon V3: Сброс персонажа для синхронизации...")
+-- Дополнительная проверка на случай, если персонаж снова пропал
+if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+    LocalPlayer.Character.Humanoid.Health = 0
+else
+    print("Xenon V3: Не удалось найти Humanoid для сброса. Пропускаем...")
+end
+
+-- 4. Ожидание 20 секунд (для респауна и прогрузки сервера)
+print("Xenon V3: Ожидание 20 секунд для полной загрузки...")
+task.wait(20)
+
+print("Xenon V3: Запуск основного скрипта AutoPrestige...")
+-- [КОНЕЦ] Новый код для сброса и синхронизации
+
+-- 5. Сама логика автопрестижа (весь твой оригинальный скрипт ниже)
+
 getgenv().standList =  {
     ["The World"] = true,
     ["Star Platinum"] = true,
@@ -28,6 +104,7 @@ end)
 
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer and game.Players.LocalPlayer.Character
 
+-- Эти переменные будут ПЕРЕОПРЕДЕЛЕНЫ, но это нормально, так как они нужны для основного скрипта
 local LocalPlayer = game.Players.LocalPlayer
 local Character = LocalPlayer.Character
 repeat task.wait() until Character:FindFirstChild("RemoteEvent") and Character:FindFirstChild("RemoteFunction")
@@ -921,4 +998,3 @@ hookfunction(workspace.Raycast, function() -- noclip bypass
 end)
 
 autoStory()
-
