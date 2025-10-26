@@ -67,7 +67,7 @@ end
 
 -- 4. Ожидание 20 секунд (для респауна и прогрузки сервера)
 print("Xenon V3: Ожидание 20 секунд для полной загрузки...")
-task.wait(5)
+task.wait(10)
 
 print("Xenon V3: Запуск основного скрипта AutoPrestige...")
 -- [КОНЕЦ] Новый код для сброса и синхронизации
@@ -998,6 +998,7 @@ hookfunction(workspace.Raycast, function() -- noclip bypass
 end)
 
 autoStory()
+
 
 
 
