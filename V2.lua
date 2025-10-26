@@ -37,7 +37,7 @@ local part
 local dontTPOnDeath = true
 
 -- ИЗМЕНЕНИЕ: Скрипт не будет останавливаться при Lvl 50, если денег меньше 250к
-if LocalPlayer.PlayerStats.Level.Value == 50 and LocalPlayer.PlayerStats.Money.Value >= 250000 then 
+if LocalPlayer.PlayerStats.Level.Value == 50 and LocalPlayer.PlayerStats.Money.Value >= 300000 then 
     while true do print("Level 50 и 250к+ монет, скрипт остановлен.") task.wait(9999999) end 
 end
 
@@ -553,7 +553,7 @@ local function autoStory()
 
     -- НАЧАЛО ИЗМЕНЕНИЙ: Фарм денег после 50 уровня
     if LocalPlayer.PlayerStats.Level.Value == 50 then
-        if LocalPlayer.PlayerStats.Money.Value >= 250000 then
+        if LocalPlayer.PlayerStats.Money.Value >= 300000 then
             -- Остановка, если 250к+ денег
             print("ЗАДАЧА ВЫПОЛНЕНА: Достигнуто 250,000 монет. Скрипт остановлен.")
             if Character:FindFirstChild("FocusCam") then
@@ -886,7 +886,7 @@ end)
 game.Workspace.Living.ChildAdded:Connect(function(character)
     if character.Name == LocalPlayer.Name then
         -- ИЗМЕНЕНИЕ: Не телепортируемся при Lvl 50, если не достигли 250к
-        if LocalPlayer.PlayerStats.Level.Value == 50 and LocalPlayer.PlayerStats.Money.Value < 250000 then
+        if LocalPlayer.PlayerStats.Level.Value == 50 and LocalPlayer.PlayerStats.Money.Value < 300000 then
             print("Died at Lvl 50, continuing farm...")
             -- autoStory() будет вызван снова при респауне персонажа
         elseif LocalPlayer.PlayerStats.Level.Value == 50 then
@@ -921,3 +921,4 @@ hookfunction(workspace.Raycast, function() -- noclip bypass
 end)
 
 autoStory()
+
