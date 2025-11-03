@@ -1,3 +1,79 @@
+-- [НАЧАЛО] Новый код для сброса и синхронизации
+print("Xenon V3: Ожидание загрузки игры...")
+
+local LocalPlayer
+local Character
+local RemoteEvent
+local RemoteFunction
+
+-- Цикл для надежного получения Player, Character и Remotes
+while true do
+    LocalPlayer = game:GetService("Players").LocalPlayer
+    if LocalPlayer then
+        Character = LocalPlayer.Character
+        if Character then
+            -- Ждем, пока Character полностью прогрузится (WaitForChild безопаснее)
+            local foundRE = Character:WaitForChild("RemoteEvent", 5)
+            local foundRF = Character:WaitForChild("RemoteFunction", 5)
+            
+            if foundRE and foundRF then
+                -- Успех! Сохраняем и выходим из цикла
+                RemoteEvent = foundRE
+                RemoteFunction = foundRF
+                print("Xenon V3: Персонаж и Remotes найдены.")
+                break -- Выход из цикла while true
+            else
+                print("Xenon V3: Персонаж есть, но RemoteEvent/RemoteFunction не найдены. Повтор...")
+            end
+        else
+            print("Xenon V3: Игрок есть, но персонаж (Character) еще не загружен. Ожидание...")
+        end
+    else
+        print("Xenon V3: Игрок (LocalPlayer) еще не загружен. Ожидание...")
+    end
+    task.wait(1) -- Ждем 1 секунду перед следующей попыткой
+end
+
+-- Теперь у нас должны быть LocalPlayer, Character, RemoteEvent, RemoteFunction
+print("Xenon V3: Обход экрана загрузки...")
+
+-- 1. Логика скипа экрана (скопировано из оригинального скрипта)
+if not LocalPlayer.PlayerGui:FindFirstChild("HUD") then
+    print("Xenon V3: Форсируем HUD...")
+    local HUD = game:GetService("ReplicatedStorage").Objects.HUD:Clone()
+    HUD.Parent = LocalPlayer.PlayerGui
+end
+RemoteEvent:FireServer("PressedPlay")
+if LocalPlayer.PlayerGui:FindFirstChild("LoadingScreen1") then
+    LocalPlayer.PlayerGui:FindFirstChild("LoadingScreen1"):Destroy()
+end
+if LocalPlayer.PlayerGui:FindFirstChild("LoadingScreen") then
+    LocalPlayer.PlayerGui:FindFirstChild("LoadingScreen"):Destroy()
+end
+print("Xenon V3: Экран загрузки пройден.")
+
+-- 2. Ожидание 5 секунд
+print("Xenon V3: Ожидание 5 секунд перед сбросом...")
+task.wait(5)
+
+-- 3. Сброс персонажа (килл)
+print("Xenon V3: Сброс персонажа для синхронизации...")
+-- Дополнительная проверка на случай, если персонаж снова пропал
+if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+    LocalPlayer.Character.Humanoid.Health = 0
+else
+    print("Xenon V3: Не удалось найти Humanoid для сброса. Пропускаем...")
+end
+
+-- 4. Ожидание 20 секунд (для респауна и прогрузки сервера)
+print("Xenon V3: Ожидание 20 секунд для полной загрузки...")
+task.wait(10)
+
+print("Xenon V3: Запуск основного скрипта AutoPrestige...")
+-- [КОНЕЦ] Новый код для сброса и синхронизации
+
+-- 5. Сама логика автопрестижа (весь твой оригинальный скрипт ниже)
+
 getgenv().standList =  {
     ["The World"] = true,
     ["Star Platinum"] = true,
@@ -12,7 +88,7 @@ getgenv().sortOrder = "Asc" --desc for less players, asc for more
 getgenv().lessPing = false --turn this on if u want lower ping servers, cant guarantee you will see same people using script, and data error 1
 getgenv().autoRequiem = false --turn this on for auto requiem
 getgenv().NPCTimeOut = 15 --timeout for npc not spawning
-getgenv().HamonCharge = 90 --change if u want to charge hamon after every kill (around 90)
+-- [XOXOL] getgenv().HamonCharge = 90 --change if u want to charge hamon after every kill (around 90)
 -- getgenv().webhook = "https://discord.com/api/webhooks/1414918175413375006/J20Y41wt-303RDUCFlpQJnmuz2ihip4wx9uFC12Q4qFhmUwYlzcr8oNaWePsWyRrMYt1" -- ИЗМЕНЕНИЕ: Вебхук отключен
 
 game:GetService("CoreGui").DescendantAdded:Connect(function(child)
@@ -28,6 +104,7 @@ end)
 
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer and game.Players.LocalPlayer.Character
 
+-- Эти переменные будут ПЕРЕОПРЕДЕЛЕНЫ, но это нормально, так как они нужны для основного скрипта
 local LocalPlayer = game.Players.LocalPlayer
 local Character = LocalPlayer.Character
 repeat task.wait() until Character:FindFirstChild("RemoteEvent") and Character:FindFirstChild("RemoteFunction")
@@ -37,7 +114,7 @@ local part
 local dontTPOnDeath = true
 
 -- ИЗМЕНЕНИЕ: Скрипт не будет останавливаться при Lvl 50, если денег меньше 250к
-if LocalPlayer.PlayerStats.Level.Value == 50 and LocalPlayer.PlayerStats.Money.Value >= 250000 then 
+if LocalPlayer.PlayerStats.Level.Value == 50 and LocalPlayer.PlayerStats.Money.Value >= 300000 then 
     while true do print("Level 50 и 250к+ монет, скрипт остановлен.") task.wait(9999999) end 
 end
 
@@ -445,6 +522,7 @@ local function killNPC(npcName, playerDistance, dontDestroyOnKill, extraParamete
         end)
     end
 
+    --[[ [XOXOL] Удалена функция зарядки Хамона
     local function HamonCharge()
         if not Character:FindFirstChild("Hamon") then
             return
@@ -455,6 +533,7 @@ local function killNPC(npcName, playerDistance, dontDestroyOnKill, extraParamete
             Character.RemoteEvent:FireServer("InputBegan", {["Input"] = Enum.KeyCode.L})
         end
     end
+    --]]
 
     local function BlockBreaker()
         if not NPC or NPC.
@@ -503,7 +582,7 @@ Parent == nil then
         end
     
         task.spawn(setStandMorphPosition)
-        task.spawn(HamonCharge)
+        -- [XOXOL] task.spawn(HamonCharge)
         task.spawn(BlockBreaker)
     end
     
@@ -534,11 +613,13 @@ local function allocateSkills() --this should allocate the destructive shit stuf
         RemoteFunction:InvokeServer("LearnSkill", {["Skill"] = "Destructive Power II",["SkillTreeType"] = "Stand"})
         RemoteFunction:InvokeServer("LearnSkill", {["Skill"] = "Destructive Power I",["SkillTreeType"] = "Stand"})
         
+        --[[ [XOXOL] Удалена прокачка навыков Хамона
         if LocalPlayer.PlayerStats.Spec.Value == "Hamon (William Zeppeli)" then
             RemoteFunction:InvokeServer("LearnSkill", {["Skill"] = "Hamon Punch V",["SkillTreeType"] = "Spec"})
             RemoteFunction:InvokeServer("LearnSkill", {["Skill"] = "Lung Capacity V", ["SkillTreeType"] = "Spec"})
             RemoteFunction:InvokeServer("LearnSkill", {["Skill"] = "Breathing Technique V",["SkillTreeType"] = "Spec"})
         end
+        --]]
     end)
 end
 
@@ -549,7 +630,7 @@ local function autoStory()
 
     -- НАЧАЛО ИЗМЕНЕНИЙ: Фарм денег после 50 уровня
     if LocalPlayer.PlayerStats.Level.Value == 50 then
-        if LocalPlayer.PlayerStats.Money.Value >= 250000 then
+        if LocalPlayer.PlayerStats.Money.Value >= 300000 then
             -- Остановка, если 250к+ денег
             print("ЗАДАЧА ВЫПОЛНЕНА: Достигнуто 250,000 монет. Скрипт остановлен.")
             if Character:FindFirstChild("FocusCam") then
@@ -563,7 +644,7 @@ local function autoStory()
         else
             -- Продолжаем фармить вампиров, т.к. Lvl 50, но < 250k
             print("Lvl 50 достигнут, продолжаю фарм Вампиров для 250,000 монет. Текущий баланс: " .. LocalPlayer.PlayerStats.Money.Value)
-            getgenv().HamonCharge = 10
+            -- [XOXOL] getgenv().HamonCharge = 10
             local function vampire()
                 pcall(function() -- Добавим pcall на случай, если NPC не найден
                     if workspace.Living:FindFirstChild("Vampire") and workspace.Living:FindFirstChild("Vampire"):FindFirstChild("HumanoidRootPart") then
@@ -586,7 +667,9 @@ local function autoStory()
     end
     -- КОНЕЦ ИЗМЕНЕНИЙ
 
-    if LocalPlayer.PlayerStats.Level.Value >= 25 and LocalPlayer.PlayerStats.Prestige.Value >= 1 and LocalPlayer.Backpack:FindFirstChild("Requiem Arrow") and (LocalPlayer.PlayerStats.Stand.Value == "King Crimson" or LocalPlayer.PlayerStats.Stand.Value == "Star Platinum") then
+    -- [[ ИСПРАВЛЕНИЕ ЗДЕСЬ ]]
+    -- Добавлена проверка getgenv().autoRequiem
+    if getgenv().autoRequiem and LocalPlayer.PlayerStats.Level.Value >= 25 and LocalPlayer.PlayerStats.Prestige.Value >= 1 and LocalPlayer.Backpack:FindFirstChild("Requiem Arrow") and (LocalPlayer.PlayerStats.Stand.Value == "King Crimson" or LocalPlayer.PlayerStats.Stand.Value == "Star Platinum") then
         LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(500, 2010, 500)
         local oldStand = LocalPlayer.PlayerStats.Stand.Value
         useItem("Requiem Arrow", "V")
@@ -594,7 +677,7 @@ local function autoStory()
         autoStory()
     end
     
-
+    --[[ [XOXOL] Полностью удален блок получения Хамона (фарм шляпы, денег для Хамона и покупка)
     if LocalPlayer.PlayerStats.Spec.Value == "None" and LocalPlayer.PlayerStats.Level.Value >= 25 then
         local function collectAndSell(toolName, amount)
             farmItem(toolName, amount)
@@ -658,6 +741,7 @@ LocalPlayer.Character.Humanoid:EquipTool(LocalPlayer.Backpack:FindFirstChild(too
             Teleport()
         end
     end
+    --]]
         
     while #questPanel:GetChildren() < 2 and repeatCount < 1000 do
         if not questPanel:FindFirstChild("Take down 3 vampires") then
@@ -693,7 +777,7 @@ if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
     
         farmItem("Rokakaka", 25)
         farmItem("Mysterious Arrow", 25)
-  farmItem("Zeppeli's Hat", 1)
+  -- [XOXOL] farmItem("Zeppeli's Hat", 1)
 
         if countItems("Mysterious Arrow") >= 25 and countItems("Mysterious Arrow") >= 25 then
             print("MAX ARROW AND ROKA, GOT")
@@ -821,8 +905,8 @@ if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
 
 
 
-    elseif questPanel:FindFirstChild("Take down 3 vampires") and LocalPlayer.PlayerStats.Spec.Value ~= "None" and LocalPlayer.PlayerStats.Level.Value >= 25 and LocalPlayer.PlayerStats.Level.Value ~= 50 then
-        getgenv().HamonCharge = 10
+    elseif questPanel:FindFirstChild("Take down 3 vampires") and LocalPlayer.PlayerStats.Level.Value >= 25 and LocalPlayer.PlayerStats.Level.Value ~= 50 then -- [XOXOL] Убрана проверка на Spec.Value
+        -- [XOXOL] getgenv().HamonCharge = 10
         local function vampire()
             LocalPlayer.Character.PrimaryPart.CFrame = workspace.Living:FindFirstChild("Vampire").HumanoidRootPart.CFrame - Vector3.new(0, 15, 0)
             if not questPanel:FindFirstChild("Take down 3 vampires") then
@@ -879,7 +963,7 @@ end)
 game.Workspace.Living.ChildAdded:Connect(function(character)
     if character.Name == LocalPlayer.Name then
         -- ИЗМЕНЕНИЕ: Не телепортируемся при Lvl 50, если не достигли 250к
-        if LocalPlayer.PlayerStats.Level.Value == 50 and LocalPlayer.PlayerStats.Money.Value < 250000 then
+        if LocalPlayer.PlayerStats.Level.Value == 50 and LocalPlayer.PlayerStats.Money.Value < 300000 then
             print("Died at Lvl 50, continuing farm...")
             -- autoStory() будет вызван снова при респауне персонажа
         elseif LocalPlayer.PlayerStats.Level.Value == 50 then
