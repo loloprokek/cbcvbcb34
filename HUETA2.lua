@@ -1129,16 +1129,55 @@ local function StartLuckyFarmLoop()
         ["Gold Coin"] = true, ["Rokakaka"] = true, ["Pure Rokakaka"] = true,
         ["Mysterious Arrow"] = true, ["Diamond"] = true, ["Ancient Scroll"] = true,
         ["Caesar's Headband"] = true, ["Stone Mask"] = true, ["Rib Cage of The Saint's Corpse"] = true,
-        ["Quinton's Glove"] = true, ["Zeppeli's Hat"] = true, ["Lucky Arrow"] = false, 
+        ["Quinton's Glove"] = true, ["Zeppeli's Hat"] = true, ["Lucky Arrow"] = false,
         ["Clackers"] = true, ["Steel Ball"] = true, ["Dio's Diary"] = true
     }
 
-    local function HasLuckyArrows()
-        local Count = 0
-        for _, Tool in pairs(LocalPlayer.Backpack:GetChildren()) do
-            if Tool.Name == "Lucky Arrow" then Count += 1 end
+    local function CountLuckyArrows()
+        local count = 0
+        for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
+            if tool.Name == "Lucky Arrow" then count += 1 end
         end
-        return Count >= 10
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Lucky Arrow") then
+            count += 1
+        end
+        return count
+    end
+
+    local function HasLuckyArrows()
+        return CountLuckyArrows() >= 10
+    end
+
+    -- САМЫЙ НАДЁЖНЫЙ ДЕТЕКТ СООБЩЕНИЯ О ЛИМИТЕ
+    local function DetectLimitMessage()
+        local foundText = nil
+        pcall(function()
+            for _, gui in pairs(LocalPlayer.PlayerGui:GetChildren()) do
+                for _, obj in pairs(gui:GetDescendants()) do
+                    if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+                        if obj.Visible and obj.Text ~= "" then
+                            local lowerText = string.lower(obj.Text)
+                            if string.find(lowerText, "10 lucky arrow") then
+                                -- Дополнительно проверяем красный цвет (ошибка обычно красная)
+                                local isRed = obj.TextColor3.R > 0.8 and obj.TextColor3.G < 0.3 and obj.TextColor3.B < 0.3
+                                if isRed or true then  -- true на случай если цвет не точно красный
+                                    foundText = obj.Text
+                                    return true
+                                end
+                            end
+                            -- Логируем подозрительные тексты для дебага
+                            if string.find(lowerText, "lucky") or string.find(lowerText, "arrow") then
+                                Log("Проверка GUI: найден текст '" .. obj.Text .. "' (цвет: " .. tostring(obj.TextColor3) .. ")", "info")
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+        if foundText then
+            Log("ДЕТЕКТ СРАБОТАЛ! Найден текст лимита: " .. foundText, "success")
+        end
+        return foundText ~= nil, foundText
     end
 
     local function TeleportTo(cf)
@@ -1175,19 +1214,41 @@ local function StartLuckyFarmLoop()
     end
     
     local cycles = 0
-    local maxCycles = 2 
-    local TeleportDelay = 0.6 -- Safe Mode Delay + Buffer
-    local ActionDelay = 0.5   -- Safe Mode Delay
-    
+    local maxCycles = 2
+    local TeleportDelay = 0.6
+    local ActionDelay = 0.5
+
+    local limitNotified = false
+
     while true do
         UpdateItems()
-        Log("Lucky Farm: Найдено предметов: " .. #SpawnedItems, "lucky")
-        
-        -- 1. Сбор предметов (С FIX'ОМ BODYVELOCITY ИЗ ОРИГИНАЛА)
+        Log("Lucky Farm: Предметов: " .. #SpawnedItems .. " | Проверка на лимит-сообщение...", "lucky")
+
+        -- ДЕТЕКТ ЛИМИТА
+        local detected, fullText = DetectLimitMessage()
+        if not limitNotified and detected then
+            local luckyCount = CountLuckyArrows()
+            local duration = "Неизвестно"
+            if typeof(GetFarmDuration) == "function" then
+                duration = GetFarmDuration()
+            end
+
+            local finishMsg = "🏹 LUCKY FARM ЗАВЕРШЁН! (Лимит 10 Lucky Arrow достигнут)\n" ..
+                              "Аккаунт: " .. LocalPlayer.Name .. "\n" ..
+                              "Сообщение: " .. (fullText or "Лимит инвентаря") .. "\n" ..
+                              "🔢 Lucky Arrows: " .. luckyCount .. "/10\n" ..
+                              "⏱ Время фарма: " .. duration
+
+            SendTelegramMessage(finishMsg, "finish")
+            Log("ФАРМ ОКОНЧЕН! 10 Lucky Arrow в инвентаре.", "success")
+            limitNotified = true
+
+            while true do task.wait(999999) end
+        end
+
+        -- Остальной фарм (сбор, продажа, покупка)
         for _, item in pairs(SpawnedItems) do
             if item.Obj and item.Obj.Parent and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                
-                -- CRITICAL FIX: BodyVelocity для предотвращения киков античита при телепорте
                 local BodyVelocity = Instance.new("BodyVelocity")
                 BodyVelocity.Parent = LocalPlayer.Character.HumanoidRootPart
                 BodyVelocity.Velocity = Vector3.new(0, 0, 0)
@@ -1200,25 +1261,20 @@ local function StartLuckyFarmLoop()
                 if item.Prompt.Parent then
                     fireproximityprompt(item.Prompt)
                 else
-                     -- Fallback for prompt (from original)
                     item.Prompt:InputHoldBegin()
                     task.wait(item.Prompt.HoldDuration or 0.5)
                     item.Prompt:InputHoldEnd()
                 end
                 
                 task.wait(TeleportDelay)
-                BodyVelocity:Destroy() 
+                BodyVelocity:Destroy()
                 
-                -- Return to safe spot immediately
                 TeleportTo(CFrame.new(978, -42, -49))
-            else
-                -- Remove invalid item from list logic if needed
             end
         end
         
-        TeleportTo(CFrame.new(978, -42, -49)) -- Ensure safe spot
-        
-        -- 2. Продажа мусора (Замедленная, SafeMode)
+        TeleportTo(CFrame.new(978, -42, -49))
+
         Log("Lucky Farm: Продажа мусора...", "lucky")
         for itemName, shouldSell in pairs(SellItemsList) do
             if shouldSell and LocalPlayer.Backpack:FindFirstChild(itemName) then
@@ -1228,26 +1284,21 @@ local function StartLuckyFarmLoop()
                         ["NPC"] = "Merchant", ["Dialogue"] = "Dialogue5", ["Option"] = "Option2"
                     })
                 end)
-                task.wait(ActionDelay) -- Используем безопасную задержку
+                task.wait(ActionDelay)
             end
         end
-        
-        -- 3. Покупка Lucky Arrows (Замедленная)
-        if getgenv().QuarkSettings.AutoBuyLucky and not HasLuckyArrows() then
+
+        if getgenv().QuarkSettings.AutoBuyLucky and not HasLuckyArrows() and not limitNotified then
             local money = LocalPlayer.PlayerStats.Money.Value
             if money >= 75000 then
                 Log("Lucky Farm: Покупка Lucky Arrow...", "lucky")
                 LocalPlayer.Character.RemoteEvent:FireServer("PurchaseShopItem", {["ItemName"] = "1x Lucky Arrow"})
                 task.wait(ActionDelay + 0.5)
             else
-                Log("Lucky Farm: Недостаточно денег ("..money..")", "warn")
+                Log("Lucky Farm: Недостаточно денег ("..money.."$)", "warn")
             end
-        elseif HasLuckyArrows() then
-            Log("Lucky Farm: ФУЛЛ Lucky Arrows (10/10)!", "success")
-            SendTelegramMessage("🏹 АККАУНТ ЗАБИТ LUCKY ARROWS (10/10)", "finish")
-            Teleport() -- Хоп, если фулл
         end
-        
+
         cycles = cycles + 1
         if cycles >= maxCycles then
             Log("Lucky Farm: Смена сервера...", "action")
