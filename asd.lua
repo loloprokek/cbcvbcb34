@@ -1,8 +1,6 @@
 -- [НАЧАЛО] Quark Beta: Beta Farm (Story + Lucky + Modes)
 -- Объединенный и доработанный скрипт по запросу пользователя.
--- FIX V5: Fix Liquid Glass (No global blur), Safe Mode Sub-settings, Rebranding to Beta.
--- FIX V6 (User Request): Added Auto-Clear for foreign quests to prevent Lighter loop.
--- FIX V7: Added "Item Check" override. If Lighter exists, script ignores missing quest and forces progression.
+-- FIX V6: Foreign Quest Detector (No Lighter Spam), Fix Logic Loops.
 
 -- [[ ГЛОБАЛЬНЫЕ НАСТРОЙКИ ПО УМОЛЧАНИЮ ]] 
 getgenv().TelegramBotToken = "" 
@@ -18,7 +16,6 @@ local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 local UserInputService = game:GetService("UserInputService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
 -- [[ СИСТЕМА СОХРАНЕНИЯ КОНФИГА ]]
 local ConfigFileName = "QuarkBeta_Settings.json"
@@ -70,11 +67,10 @@ local function SaveConfig()
         Transparency = getgenv().QuarkSettings.Transparency,
         GlassEffect = getgenv().QuarkSettings.GlassEffect,
         SafeMode = getgenv().QuarkSettings.SafeMode, 
-        BlackScreen = getgenv().QuarkSettings.BlackScreen,
+        BlackScreen = getgenv().QuarkSettings.BlackScreen, -- Новая настройка
         TargetMoney = getgenv().QuarkSettings.TargetMoney,
         FarmModeIndex = getgenv().QuarkSettings.FarmModeIndex,
         AutoBuyLucky = getgenv().QuarkSettings.AutoBuyLucky,
-        AutoClearQuests = getgenv().QuarkSettings.AutoClearQuests, -- Новая настройка
         ThemeColor = {
             R = getgenv().QuarkSettings.ThemeColor.R,
             G = getgenv().QuarkSettings.ThemeColor.G,
@@ -98,11 +94,10 @@ local function LoadConfig()
         Transparency = 0.2,
         GlassEffect = false,
         SafeMode = false,
-        BlackScreen = false, 
+        BlackScreen = false, -- По умолчанию выключен
         TargetMoney = 300000, 
         FarmModeIndex = 1,
         AutoBuyLucky = true,
-        AutoClearQuests = true, -- По умолчанию включена очистка квестов
         ThemeColor = Color3.fromRGB(15, 15, 20) 
     }
 
@@ -132,7 +127,6 @@ local function LoadConfig()
             Defaults.TargetMoney = result.TargetMoney or 300000
             Defaults.FarmModeIndex = result.FarmModeIndex or 1
             Defaults.AutoBuyLucky = result.AutoBuyLucky ~= nil and result.AutoBuyLucky or true
-            Defaults.AutoClearQuests = result.AutoClearQuests ~= nil and result.AutoClearQuests or true
             
             if result.ThemeColor then
                 Defaults.ThemeColor = Color3.new(result.ThemeColor.R, result.ThemeColor.G, result.ThemeColor.B)
@@ -143,12 +137,13 @@ local function LoadConfig()
     getgenv().QuarkSettings = Defaults
     getgenv().TargetMoney = getgenv().QuarkSettings.TargetMoney 
     
+    -- Применяем Safe Mode при загрузке
     task.spawn(UpdateSafeModeState)
 end
 
 LoadConfig()
 
--- [[ SETUP UI: ПЕРВЫЙ ЗАПУСК ]]
+-- [[ SETUP UI: ПЕРВЫЙ ЗАПУСК (РЕДИЗАЙН) ]]
 if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "ВСТАВЬ") or getgenv().TelegramChatID == "" then
     if CoreGui:FindFirstChild("QuarkSetup") then CoreGui:FindFirstChild("QuarkSetup"):Destroy() end
 
@@ -157,10 +152,11 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
     SetupScreen.Parent = CoreGui
     SetupScreen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     
+    -- Основной фрейм (стиль как у Main UI)
     local Frame = Instance.new("Frame")
     Frame.Size = UDim2.new(0, 420, 0, 280)
     Frame.Position = UDim2.new(0.5, -210, 0.5, -140)
-    Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25) 
+    Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25) -- Темная тема
     Frame.BorderSizePixel = 0
     Frame.Parent = SetupScreen
     Frame.Active = true
@@ -172,6 +168,7 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
     Stroke.Thickness = 1.5
     Stroke.Transparency = 0.5
     
+    -- Заголовок
     local TitleBar = Instance.new("Frame", Frame)
     TitleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     TitleBar.BackgroundTransparency = 0.95
@@ -186,6 +183,7 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
     Title.Font = Enum.Font.GothamBold
     Title.TextSize = 18
     
+    -- Поля ввода
     local function CreateNiceInput(placeholder, pos, titleText)
         local Container = Instance.new("Frame", Frame)
         Container.Size = UDim2.new(0.9, 0, 0, 55)
@@ -217,7 +215,7 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
         Box.Text = ""
         Box.BackgroundTransparency = 1
         Box.TextColor3 = Color3.fromRGB(255, 255, 255)
-        Box.Font = Enum.Font.Code
+        Box.Font = Enum.Font.Code -- Code шрифт для токенов
         Box.TextSize = 13
         Box.TextXAlignment = Enum.TextXAlignment.Left
         
@@ -227,6 +225,7 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
     local TokenBox = CreateNiceInput("Введите Bot Token...", 60, "Telegram Bot Token")
     local ChatIDBox = CreateNiceInput("Введите Chat ID...", 125, "Telegram Chat ID")
     
+    -- Кнопка сохранения
     local SaveBtn = Instance.new("TextButton", Frame)
     SaveBtn.Size = UDim2.new(0.9, 0, 0, 40)
     SaveBtn.Position = UDim2.new(0.05, 0, 0, 210)
@@ -248,6 +247,7 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
             getgenv().TelegramChatID = ChatIDBox.Text
             SaveConfig()
             
+            -- Анимация закрытия
             TweenService:Create(Frame, TweenInfo.new(0.3), {Size = UDim2.new(0, 420, 0, 0), BackgroundTransparency = 1}):Play()
             for _, v in pairs(Frame:GetDescendants()) do
                 if v:IsA("TextLabel") or v:IsA("TextBox") or v:IsA("TextButton") then
@@ -448,6 +448,9 @@ local UIGradient = nil
 local function UpdateGlassEffect()
     if not MainFrame then return end
     
+    -- Фикс: Больше не создаем BlurEffect в Lighting (убираем размытие мира)
+    -- Вместо этого меняем стиль самого фрейма
+    
     if not UIGradient then
         UIGradient = Instance.new("UIGradient")
         UIGradient.Rotation = 45
@@ -498,7 +501,7 @@ function DebugUI:Create()
     MainFrame.BackgroundTransparency = getgenv().QuarkSettings.Transparency
     MainFrame.BorderSizePixel = 0
     MainFrame.Position = UDim2.new(0.02, 0, 0.3, 0)
-    MainFrame.Size = UDim2.new(0, 450, 0, 500)
+    MainFrame.Size = UDim2.new(0, 450, 0, 500) -- Увеличил высоту
     MainFrame.Active = true
     MainFrame.Draggable = true
     MainFrame.ClipsDescendants = true
@@ -689,6 +692,7 @@ function DebugUI:Create()
         return ContentFrame
     end
 
+    -- Хелпер для элементов внутри категории
     local function CreateToggleIn(parent, text, defaultState, callback)
         local Frame = Instance.new("Frame")
         Frame.Parent = parent
@@ -782,6 +786,7 @@ function DebugUI:Create()
         end)
     end
 
+    -- НОВАЯ ФУНКЦИЯ: Dropdown/Cycler для режима
     local function CreateModeSelector(parent, text, modes, currentIdx, callback)
         local Frame = Instance.new("Frame")
         Frame.Parent = parent
@@ -889,6 +894,7 @@ function DebugUI:Create()
     CreateToggleIn(MainCat, "Логи в Меню (UI)", getgenv().QuarkSettings.UILogging, function(v) getgenv().QuarkSettings.UILogging = v end)
 
     local FarmCat = CreateCategory("Настройки Фарма")
+    -- Выбор режима
     CreateModeSelector(FarmCat, "Режим Фарма", FarmModes, getgenv().QuarkSettings.FarmModeIndex, function(idx)
         getgenv().QuarkSettings.FarmModeIndex = idx
     end)
@@ -896,8 +902,7 @@ function DebugUI:Create()
         getgenv().QuarkSettings.TargetMoney = val
         getgenv().TargetMoney = val
     end)
-    CreateToggleIn(FarmCat, "Авто-Отмена лишних квестов", getgenv().QuarkSettings.AutoClearQuests, function(v) getgenv().QuarkSettings.AutoClearQuests = v end)
-
+    
     local LuckyCat = CreateCategory("Lucky Farm Опции")
     CreateToggleIn(LuckyCat, "Авто-Покупка Стрел", getgenv().QuarkSettings.AutoBuyLucky, function(v) getgenv().QuarkSettings.AutoBuyLucky = v end)
     
@@ -913,6 +918,7 @@ function DebugUI:Create()
         end
     end)
 
+    -- НОВАЯ КАТЕГОРИЯ: SAFE MODE
     local SafeModeCat = CreateCategory("Оптимизация")
     CreateToggleIn(SafeModeCat, "Оптимизация (FPS/GPU)", getgenv().QuarkSettings.SafeMode, function(v)
         getgenv().QuarkSettings.SafeMode = v
@@ -1225,89 +1231,6 @@ if hookmetamethod and newcclosure then
         end))
     end)
 end
-
--- =========================================================================================
--- [[ МОДУЛЬ: ОЧИСТКА ЧУЖИХ КВЕСТОВ (ФИКС "ЗАЖИГАЛКИ") ]]
--- =========================================================================================
-
-local function ClearForeignQuests()
-    if not getgenv().QuarkSettings.AutoClearQuests then return end
-    
-    -- Белый список квестов, которые скрипт умеет выполнять
-    local AllowedQuests = {
-        ["Take down 3 vampires"] = true,
-        ["Help Giorno by Defeating Security Guards"] = true,
-        ["Defeat Leaky Eye Luca"] = true,
-        ["Defeat Bucciarati"] = true,
-        ["Collect $5,000 To Cover For Popo's Real Fortune"] = true,
-        ["Defeat Fugo And His Purple Haze"] = true,
-        ["Defeat Pesci"] = true,
-        ["Defeat Ghiaccio"] = true,
-        ["Defeat Diavolo"] = true
-    }
-
-    local questPanel = LocalPlayer.PlayerGui.HUD.Main.Frames.Quest.Quests
-    if not questPanel then return end
-
-    local cleaned = false
-
-    for _, quest in pairs(questPanel:GetChildren()) do
-        if quest:IsA("Frame") and quest.Name ~= "UIGridLayout" then
-            -- Пытаемся определить имя квеста (иногда оно в TextLabel внутри)
-            local questName = quest.Name
-            for _, v in pairs(quest:GetDescendants()) do
-                if v:IsA("TextLabel") and AllowedQuests[v.Text] then
-                    questName = v.Text
-                    break
-                end
-            end
-
-            -- Если квеста нет в белом списке - удаляем
-            if not AllowedQuests[questName] then
-                
-                -- Ищем кнопку отмены
-                local cancelBtn = nil
-                -- Вариант 1: Прямой ребенок с именем Cancel/Abandon
-                cancelBtn = quest:FindFirstChild("Cancel") or quest:FindFirstChild("Abandon")
-                
-                -- Вариант 2: Глубокий поиск кнопки с текстом X или Cancel
-                if not cancelBtn then
-                    for _, btn in pairs(quest:GetDescendants()) do
-                        if btn:IsA("ImageButton") or (btn:IsA("TextButton") and (btn.Name == "Cancel" or btn.Text == "X" or btn.Text == "Cancel")) then
-                            cancelBtn = btn
-                            break
-                        end
-                    end
-                end
-                
-                if cancelBtn then
-                    Log("Пытаюсь отменить квест: " .. questName, "action")
-                    firesignal(cancelBtn.MouseButton1Click)
-                    task.wait(0.5)
-                    -- Подтверждение диалога (если есть)
-                    local dialogue = LocalPlayer.PlayerGui:FindFirstChild("DialogueGui")
-                    if dialogue then
-                         local yesBtn = dialogue:FindFirstChild("Option1", true) -- Usually Option1 is Yes
-                         if yesBtn then 
-                            firesignal(yesBtn.MouseButton1Click) 
-                            cleaned = true
-                         end
-                    else
-                        cleaned = true
-                    end
-                else
-                    -- Тихое игнорирование, раз кнопки нет
-                    -- Log("Не нашел кнопку отмены для квеста!", "error")
-                end
-            end
-        end
-    end
-    
-    if cleaned then
-        task.wait(1) -- Ждем обновления GUI
-    end
-end
-
 
 -- =========================================================================================
 -- [[ МОДУЛЬ: LUCKY FARM (ИНТЕГРИРОВАННЫЙ & ИСПРАВЛЕННЫЙ V3) ]]
@@ -1883,12 +1806,53 @@ end
 local function autoStory()
     Log("Запуск логики AutoStory...", "action")
     local questPanel = LocalPlayer.PlayerGui.HUD.Main.Frames.Quest.Quests
-    
-    -- [[ FIX: ПРОВЕРКА И ОЧИСТКА ЧУЖИХ КВЕСТОВ ПЕРЕД СТАРТОМ ]]
-    ClearForeignQuests() 
-    
     local repeatCount = 0
     allocateSkills()
+
+    -- [[ FIX: LIST OF KNOWN QUESTS ]]
+    local KnownQuests = {
+        "Take down 3 vampires",
+        "Help Giorno by Defeating Security Guards",
+        "Defeat Leaky Eye Luca",
+        "Defeat Bucciarati",
+        "Collect $5,000 To Cover For Popo's Real Fortune",
+        "Defeat Fugo And His Purple Haze",
+        "Defeat Pesci",
+        "Defeat Ghiaccio",
+        "Defeat Diavolo"
+    }
+
+    local function IsKnownQuest(name)
+        for _, q in pairs(KnownQuests) do
+            if name == q then return true end
+        end
+        return false
+    end
+
+    -- [[ FIX: FOREIGN QUEST CHECK ]]
+    local foreignQuest = nil
+    for _, child in pairs(questPanel:GetChildren()) do
+        if not child:IsA("UIListLayout") and not IsKnownQuest(child.Name) then
+            foreignQuest = child.Name
+            break
+        end
+    end
+
+    if foreignQuest then
+        Log("⚠️ СТОРОННИЙ КВЕСТ: " .. foreignQuest, "warn")
+        Log("⛔ Сюжет заблокирован. AFK фарм Вампиров...", "action")
+        
+        -- Fallback Farm (Safe loop so script doesn't die)
+        if LocalPlayer.PlayerStats.Level.Value < 50 or LocalPlayer.PlayerStats.Money.Value < getgenv().TargetMoney then
+             killNPC("Vampire", 15)
+        else
+             task.wait(5)
+        end
+        
+        task.wait(1)
+        autoStory() -- Loop back
+        return
+    end
 
     if LocalPlayer.PlayerStats.Level.Value == 50 then
         local money = LocalPlayer.PlayerStats.Money.Value
@@ -1910,7 +1874,7 @@ local function autoStory()
             
         -- MODE 4: JUST LEVEL/PRESTIGE (Игнор денег и лаки)
         elseif mode == 4 then
-            -- Просто висит на 50
+            -- Просто висит на 50, может фармить вампиров для фана
             
         -- MODE 1: STANDARD (Money -> Stop)
         else 
@@ -2026,14 +1990,16 @@ local function autoStory()
         end
     end
        
-    while #questPanel:GetChildren() < 2 and repeatCount < 1000 do
-        -- Fix: Check if stuck on Lighter quest by explicitly clearing if needed before Giorno logic
-        if not questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") and not questPanel:FindFirstChild("Take down 3 vampires") and not questPanel:FindFirstChild("Defeat Leaky Eye Luca") then
-            -- Если мы здесь, значит скрипт пытается взять начальные квесты
-            -- Если при этом #questPanel:GetChildren() > 0, значит там висит мусор
-             ClearForeignQuests() 
-        end
+    -- [[ FIX: CHANGED LOOP CONDITION TO PREVENT SPAM IF ANY QUEST EXISTS ]]
+    -- Старая логика: #questPanel:GetChildren() < 2 (считала 1 квест как "мало" и запускала спам)
+    -- Новая логика: Только если 0 квестов (или только layout).
     
+    local questCount = 0
+    for _, c in pairs(questPanel:GetChildren()) do
+        if not c:IsA("UIListLayout") then questCount = questCount + 1 end
+    end
+    
+    while questCount == 0 and repeatCount < 1000 do
         if not questPanel:FindFirstChild("Take down 3 vampires") then
             Log("Квест завершен (".. math.floor(tick() - lastTick) .. "с)", "success")
             lastTick = tick()
@@ -2044,21 +2010,19 @@ local function autoStory()
         storyDialogue()
         task.wait(0.01)
         repeatCount = repeatCount + 1
+        
+        -- Recount inside loop
+        questCount = 0
+        for _, c in pairs(questPanel:GetChildren()) do
+            if not c:IsA("UIListLayout") then questCount = questCount + 1 end
+        end
     end
     
 
     if repeatCount >= 1000 then
         Teleport()
     end
-    
-    -- [[ FIX: ПРОВЕРКА НАЛИЧИЯ ПРЕДМЕТА "LIGHTER" ВМЕСТО КВЕСТА ]]
-    local hasLighter = LocalPlayer.Backpack:FindFirstChild("Lighter") or Character:FindFirstChild("Lighter")
-
-    if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") or hasLighter then
-        if hasLighter and not questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
-            Log("Квеста нет, но есть Lighter. Принудительный старт!", "warn")
-        end
-        
+if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
         Log("NPC: Security Guard", "info")
         if killNPC("Security Guard", 15) then
             task.wait(1)
