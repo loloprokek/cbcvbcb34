@@ -2,6 +2,7 @@
 -- Объединенный и доработанный скрипт по запросу пользователя.
 -- FIX V5: Fix Liquid Glass (No global blur), Safe Mode Sub-settings, Rebranding to Beta.
 -- FIX V6 (User Request): Added Auto-Clear for foreign quests to prevent Lighter loop.
+-- FIX V7: Added "Item Check" override. If Lighter exists, script ignores missing quest and forces progression.
 
 -- [[ ГЛОБАЛЬНЫЕ НАСТРОЙКИ ПО УМОЛЧАНИЮ ]] 
 getgenv().TelegramBotToken = "" 
@@ -1263,8 +1264,6 @@ local function ClearForeignQuests()
 
             -- Если квеста нет в белом списке - удаляем
             if not AllowedQuests[questName] then
-                Log("⚠️ Найден чужой квест: " .. tostring(questName), "warn")
-                Log("Пытаюсь отменить, чтобы не сломать скрипт...", "action")
                 
                 -- Ищем кнопку отмены
                 local cancelBtn = nil
@@ -1282,6 +1281,7 @@ local function ClearForeignQuests()
                 end
                 
                 if cancelBtn then
+                    Log("Пытаюсь отменить квест: " .. questName, "action")
                     firesignal(cancelBtn.MouseButton1Click)
                     task.wait(0.5)
                     -- Подтверждение диалога (если есть)
@@ -1296,7 +1296,8 @@ local function ClearForeignQuests()
                         cleaned = true
                     end
                 else
-                    Log("Не нашел кнопку отмены для квеста!", "error")
+                    -- Тихое игнорирование, раз кнопки нет
+                    -- Log("Не нашел кнопку отмены для квеста!", "error")
                 end
             end
         end
@@ -2049,7 +2050,15 @@ local function autoStory()
     if repeatCount >= 1000 then
         Teleport()
     end
-if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
+    
+    -- [[ FIX: ПРОВЕРКА НАЛИЧИЯ ПРЕДМЕТА "LIGHTER" ВМЕСТО КВЕСТА ]]
+    local hasLighter = LocalPlayer.Backpack:FindFirstChild("Lighter") or Character:FindFirstChild("Lighter")
+
+    if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") or hasLighter then
+        if hasLighter and not questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
+            Log("Квеста нет, но есть Lighter. Принудительный старт!", "warn")
+        end
+        
         Log("NPC: Security Guard", "info")
         if killNPC("Security Guard", 15) then
             task.wait(1)
