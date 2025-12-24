@@ -1,6 +1,6 @@
 -- [НАЧАЛО] Quark Beta: Beta Farm (Story + Lucky + Modes)
 -- Объединенный и доработанный скрипт по запросу пользователя.
--- FIX V6: Foreign Quest Detector (No Lighter Spam), Fix Logic Loops.
+-- FIX V8: HARD Quest Ignore (No Story Dialogue if Blocked), Infinite Vampire Quest Loop for EXP.
 
 -- [[ ГЛОБАЛЬНЫЕ НАСТРОЙКИ ПО УМОЛЧАНИЮ ]] 
 getgenv().TelegramBotToken = "" 
@@ -1829,29 +1829,50 @@ local function autoStory()
         return false
     end
 
-    -- [[ FIX: FOREIGN QUEST CHECK ]]
-    local foreignQuest = nil
+    -- [[ FIX V8: SUPER HARD IGNORE QUESTS ]]
+    local blockedByLighter = false
+    if LocalPlayer.Backpack:FindFirstChild("Lighter") or LocalPlayer.Character:FindFirstChild("Lighter") then
+         blockedByLighter = true
+    end
+
+    local blockedByForeignQuest = nil
     for _, child in pairs(questPanel:GetChildren()) do
         if not child:IsA("UIListLayout") and not IsKnownQuest(child.Name) then
-            foreignQuest = child.Name
+            blockedByForeignQuest = child.Name
             break
         end
     end
 
-    if foreignQuest then
-        Log("⚠️ СТОРОННИЙ КВЕСТ: " .. foreignQuest, "warn")
-        Log("⛔ Сюжет заблокирован. AFK фарм Вампиров...", "action")
-        
-        -- Fallback Farm (Safe loop so script doesn't die)
-        if LocalPlayer.PlayerStats.Level.Value < 50 or LocalPlayer.PlayerStats.Money.Value < getgenv().TargetMoney then
-             killNPC("Vampire", 15)
-        else
-             task.wait(5)
-        end
-        
-        task.wait(1)
-        autoStory() -- Loop back
-        return
+    -- [[ ЕСЛИ СЮЖЕТ СЛОМАН -> АКТИВИРУЕМ БЕСКОНЕЧНЫЙ ЦИКЛ КВЕСТА ВАМПИРОВ (ДЛЯ ОПЫТА) ]]
+    if blockedByLighter or blockedByForeignQuest then
+         if blockedByLighter then Log("⚠️ ЗАЖИГАЛКА В ИНВЕНТАРЕ! Сюжет сломан.", "warn") end
+         if blockedByForeignQuest then Log("⚠️ СТОРОННИЙ КВЕСТ: " .. blockedByForeignQuest, "warn") end
+         
+         Log("🔄 Запуск цикла фарма Вампиров (Quest Loop)...", "action")
+
+         -- 1. Берем квест у Цеппели (если нет)
+         if not questPanel:FindFirstChild("Take down 3 vampires") then
+             Log("Беру квест у Zeppeli...", "info")
+             -- ТП к Цеппели на всякий случай, если далеко
+             if workspace.FriendlyNPCs:FindFirstChild("William Zeppeli") then
+                 LocalPlayer.Character.HumanoidRootPart.CFrame = workspace.FriendlyNPCs["William Zeppeli"].HumanoidRootPart.CFrame - Vector3.new(0,5,0)
+                 task.wait(0.5)
+             end
+             endDialogue("William Zeppeli", "Dialogue4", "Option1")
+             task.wait(1)
+         end
+         
+         -- 2. Убиваем вампиров
+         killNPC("Vampire", 15)
+         
+         -- 3. Сдаем квест (просто пробуем поговорить снова, логика сдачи внутри killNPC callback или тут)
+         if not questPanel:FindFirstChild("Take down 3 vampires") then
+             Log("Квест сдан (+EXP).", "success")
+         end
+         
+         task.wait(0.5)
+         autoStory() -- Рекурсия, но так как условия блокировки true, мы снова попадем сюда, а не в Giorno
+         return -- ВАЖНО: Выход из функции, чтобы не идти к Giorno
     end
 
     if LocalPlayer.PlayerStats.Level.Value == 50 then
@@ -2001,14 +2022,17 @@ local function autoStory()
     
     while questCount == 0 and repeatCount < 1000 do
         if not questPanel:FindFirstChild("Take down 3 vampires") then
-            Log("Квест завершен (".. math.floor(tick() - lastTick) .. "с)", "success")
-            lastTick = tick()
+            -- Исправлен спам лога "Квест завершен"
+            if (tick() - lastTick) >= 5 then
+               Log("Поиск квеста...", "info")
+               lastTick = tick()
+            end
             endDialogue("William Zeppeli", "Dialogue4", "Option1")
         end
     
         LocalPlayer.QuestsRemoteFunction:InvokeServer({[1] = "ReturnData"})
         storyDialogue()
-        task.wait(0.01)
+        task.wait(0.1) -- Чуть увеличил задержку
         repeatCount = repeatCount + 1
         
         -- Recount inside loop
@@ -2160,52 +2184,3 @@ if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
         end
     end
 end
-
-task.spawn(function()
-    while task.wait(3) do
-        if checkPrestige(LocalPlayer.PlayerStats.Level.Value, LocalPlayer.PlayerStats.Prestige.Value) then
-            Log("Престиж! HOP...", "success")
-            Teleport()
-        elseif LocalPlayer.PlayerStats.Level.Value == 50 then
-            if Character:FindFirstChild("FocusCam") then
-                Character.FocusCam:Destroy()
-            end
-            break 
-        end
-    end
-end)
-
-game.Workspace.Living.ChildAdded:Connect(function(character)
-    if character.Name == LocalPlayer.Name then
-        if LocalPlayer.PlayerStats.Level.Value == 50 and LocalPlayer.PlayerStats.Money.Value < getgenv().TargetMoney then
-            Log("Смерть на 50 ур. Продолжаю.", "warn")
-        elseif LocalPlayer.PlayerStats.Level.Value == 50 then
-            -- Если 50 лвл, то проверяем режим, если лаки фарм - возрождаемся и продолжаем
-            if getgenv().QuarkSettings.FarmModeIndex == 2 or getgenv().QuarkSettings.FarmModeIndex == 3 then
-                task.wait(3)
-                StartLuckyFarmLoop()
-            end
-        else
-            if dontTPOnDeath then
-                Teleport()
-            else
-                attemptStandFarm()
-            end
-        end
-    end
-end)
-
-LocalPlayer.CharacterAdded:Connect(function()
-    task.wait(1)
-    for _, child in pairs(LocalPlayer.Character:GetDescendants()) do
-        if child:IsA("BasePart") and child.CanCollide == true then
-            child.CanCollide = false
-        end
-    end
-end)
-
-hookfunction(workspace.Raycast, function() 
-    return
-end)
-
-autoStory()
