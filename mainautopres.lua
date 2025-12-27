@@ -1,8 +1,3 @@
--- [НАЧАЛО] Quark Beta: Beta Farm (Story + Lucky + Modes)
--- Объединенный и доработанный скрипт по запросу пользователя.
--- FIX V6: Improved Anti-AFK (Proactive), Custom Black Screen, Fixed Rejoin Loop, Config Fixes.
-
--- [[ ГЛОБАЛЬНЫЕ НАСТРОЙКИ ПО УМОЛЧАНИЮ ]] 
 getgenv().TelegramBotToken = "" 
 getgenv().TelegramChatID = ""
 
@@ -18,44 +13,35 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local UserInputService = game:GetService("UserInputService")
 local VirtualUser = game:GetService("VirtualUser")
 
--- [[ МОЩНЫЙ ANTI-AFK v2 (PROACTIVE) ]]
--- Старый метод (Idled)
 Players.LocalPlayer.Idled:Connect(function()
     VirtualUser:CaptureController()
     VirtualUser:ClickButton2(Vector2.new())
-    print("Quark: Anti-AFK (Idled) сработал")
 end)
 
--- Новый метод (Proactive Loop) - предотвращает кик за 20 минут
 task.spawn(function()
     while true do
-        task.wait(60) -- Каждую минуту
+        task.wait(60)
         pcall(function()
             VirtualUser:CaptureController()
             VirtualUser:ClickButton2(Vector2.new())
-            -- Легкое движение камеры, если возможно, чтобы сбросить внутренние таймеры
             local currentCam = workspace.CurrentCamera
             if currentCam then
-               -- Микро-сдвиг (почти незаметный)
-               -- currentCam.CFrame = currentCam.CFrame * CFrame.Angles(0, 0.0001, 0)
             end
         end)
     end
 end)
 
--- [[ СИСТЕМА СОХРАНЕНИЯ КОНФИГА ]]
 local ConfigFileName = "QuarkBeta_Settings.json"
 
--- Режимы фарма
 local FarmModes = {
-    "Standard (Money & Stop)", -- 1: Обычный: Сюжет -> Деньги -> Стоп
-    "Money -> Lucky Farm",     -- 2: Сюжет -> Деньги -> Покупка/Фарм Лаки
-    "P3/Lvl50 -> Lucky Farm",  -- 3: Сюжет (до упора) -> Покупка/Фарм Лаки (игнор денег)
-    "Just Prestige/Level"      -- 4: Только кач, без фарма денег и лаки
+    "Standard (Money & Stop)",
+    "Money -> Lucky Farm",
+    "P3/Lvl50 -> Lucky Farm",
+    "Just Prestige/Level"
 }
 
--- [[ КАСТОМНЫЙ ЧЕРНЫЙ ЭКРАН ]]
 local BlackScreenGui = nil
+local StatsUpdateLoop = nil
 
 local function ToggleBlackScreen(state)
     if state then
@@ -64,44 +50,100 @@ local function ToggleBlackScreen(state)
             BlackScreenGui.Name = "QuarkBlackScreen"
             BlackScreenGui.Parent = CoreGui
             BlackScreenGui.IgnoreGuiInset = true
-            BlackScreenGui.DisplayOrder = 9999 -- Поверх всего
+            BlackScreenGui.DisplayOrder = 9999
             
             local MainBG = Instance.new("Frame")
             MainBG.Name = "Background"
             MainBG.Size = UDim2.new(1, 0, 1, 0)
-            MainBG.BackgroundColor3 = Color3.fromRGB(5, 5, 10) -- Глубокий черный/синий
+            MainBG.BackgroundColor3 = Color3.fromRGB(5, 5, 10)
             MainBG.BorderSizePixel = 0
             MainBG.Parent = BlackScreenGui
             
-            -- Логотип
+            local ContentHolder = Instance.new("Frame")
+            ContentHolder.Size = UDim2.new(0, 400, 0, 300)
+            ContentHolder.Position = UDim2.new(0.5, -200, 0.5, -150)
+            ContentHolder.BackgroundTransparency = 1
+            ContentHolder.Parent = MainBG
+
             local Logo = Instance.new("TextLabel")
-            Logo.Text = "⚛️ Quark Beta"
+            Logo.Text = "ATOM QUARK"
             Logo.Font = Enum.Font.GothamBold
-            Logo.TextSize = 32
-            Logo.TextColor3 = Color3.fromRGB(150, 150, 255)
+            Logo.TextSize = 40
+            Logo.TextColor3 = Color3.fromRGB(120, 120, 255)
             Logo.Size = UDim2.new(1, 0, 0, 50)
-            Logo.Position = UDim2.new(0, 0, 0.45, 0)
+            Logo.Position = UDim2.new(0, 0, 0, 0)
             Logo.BackgroundTransparency = 1
-            Logo.Parent = MainBG
+            Logo.Parent = ContentHolder
             
-            -- Статус
             local Status = Instance.new("TextLabel")
-            Status.Text = "OPTIMIZED MODE: 3D RENDERING DISABLED"
+            Status.Text = "3D RENDERING DISABLED"
             Status.Font = Enum.Font.Code
-            Status.TextSize = 14
+            Status.TextSize = 16
             Status.TextColor3 = Color3.fromRGB(100, 255, 100)
             Status.Size = UDim2.new(1, 0, 0, 30)
-            Status.Position = UDim2.new(0, 0, 0.52, 0)
+            Status.Position = UDim2.new(0, 0, 0, 45)
             Status.BackgroundTransparency = 1
-            Status.Parent = MainBG
+            Status.Parent = ContentHolder
+
+            local StatsFrame = Instance.new("Frame")
+            StatsFrame.Size = UDim2.new(0.8, 0, 0, 120)
+            StatsFrame.Position = UDim2.new(0.1, 0, 0, 90)
+            StatsFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+            StatsFrame.BackgroundTransparency = 0.5
+            Instance.new("UICorner", StatsFrame).CornerRadius = UDim.new(0, 8)
+            local SStroke = Instance.new("UIStroke", StatsFrame)
+            SStroke.Color = Color3.fromRGB(60, 60, 100)
+            SStroke.Thickness = 1
+            StatsFrame.Parent = ContentHolder
+
+            local function CreateStatLine(name, yPos)
+                local Lbl = Instance.new("TextLabel")
+                Lbl.Size = UDim2.new(1, -20, 0, 30)
+                Lbl.Position = UDim2.new(0, 10, 0, yPos)
+                Lbl.BackgroundTransparency = 1
+                Lbl.Font = Enum.Font.GothamMedium
+                Lbl.TextColor3 = Color3.fromRGB(220, 220, 220)
+                Lbl.TextSize = 18
+                Lbl.TextXAlignment = Enum.TextXAlignment.Left
+                Lbl.Parent = StatsFrame
+                return Lbl
+            end
+
+            local MoneyTxt = CreateStatLine("Money: ...", 10)
+            local LevelTxt = CreateStatLine("Level: ...", 45)
+            local PrestigeTxt = CreateStatLine("Prestige: ...", 80)
+
+            StatsUpdateLoop = RunService.RenderStepped:Connect(function()
+                pcall(function()
+                    local stats = Players.LocalPlayer.PlayerStats
+                    MoneyTxt.Text = "💰 Money: " .. stats.Money.Value .. " / " .. getgenv().TargetMoney
+                    LevelTxt.Text = "⭐ Level: " .. stats.Level.Value
+                    PrestigeTxt.Text = "🏆 Prestige: " .. stats.Prestige.Value
+                end)
+            end)
+
+            local DisableBtn = Instance.new("TextButton")
+            DisableBtn.Size = UDim2.new(0.6, 0, 0, 40)
+            DisableBtn.Position = UDim2.new(0.2, 0, 1, -50)
+            DisableBtn.Text = "TURN ON SCREEN"
+            DisableBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+            DisableBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            DisableBtn.Font = Enum.Font.GothamBold
+            DisableBtn.TextSize = 14
+            Instance.new("UICorner", DisableBtn).CornerRadius = UDim.new(0, 8)
+            DisableBtn.Parent = ContentHolder
+
+            DisableBtn.MouseButton1Click:Connect(function()
+                getgenv().QuarkSettings.BlackScreen = false
+                ToggleBlackScreen(false)
+            end)
             
-            -- Анимация пульсации
             task.spawn(function()
                 while BlackScreenGui and BlackScreenGui.Parent do
-                    TweenService:Create(Logo, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {TextColor3 = Color3.fromRGB(200, 200, 255)}):Play()
-                    task.wait(1.5)
-                    TweenService:Create(Logo, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {TextColor3 = Color3.fromRGB(100, 100, 200)}):Play()
-                    task.wait(1.5)
+                    TweenService:Create(Logo, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {TextColor3 = Color3.fromRGB(200, 200, 255)}):Play()
+                    task.wait(2)
+                    TweenService:Create(Logo, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {TextColor3 = Color3.fromRGB(120, 120, 255)}):Play()
+                    task.wait(2)
                 end
             end)
         end
@@ -111,29 +153,29 @@ local function ToggleBlackScreen(state)
         if BlackScreenGui then
             BlackScreenGui.Enabled = false
         end
+        if StatsUpdateLoop then
+            StatsUpdateLoop:Disconnect()
+            StatsUpdateLoop = nil
+        end
         RunService:Set3dRenderingEnabled(true)
     end
 end
 
--- Глобальная функция Safe Mode
 local function UpdateSafeModeState()
     local safeModeEnabled = getgenv().QuarkSettings.SafeMode
     local blackScreenEnabled = getgenv().QuarkSettings.BlackScreen
 
     pcall(function()
         if safeModeEnabled then
-            -- Базовая оптимизация (всегда при Safe Mode)
             settings().Rendering.QualityLevel = 1
             if setfpscap then setfpscap(30) end
             
-            -- Дополнительная опция: Черный экран (отключение 3D)
             if blackScreenEnabled then
                 ToggleBlackScreen(true)
             else
                 ToggleBlackScreen(false)
             end
         else
-            -- Выключение Safe Mode
             ToggleBlackScreen(false)
             RunService:Set3dRenderingEnabled(true)
             settings().Rendering.QualityLevel = 10
@@ -158,7 +200,7 @@ local function SaveConfig()
         BlackScreen = getgenv().QuarkSettings.BlackScreen,
         TargetMoney = getgenv().QuarkSettings.TargetMoney,
         FarmModeIndex = getgenv().QuarkSettings.FarmModeIndex,
-        AutoBuyLucky = getgenv().QuarkSettings.AutoBuyLucky, -- Сохраняем это поле
+        AutoBuyLucky = getgenv().QuarkSettings.AutoBuyLucky,
         ThemeColor = {
             R = getgenv().QuarkSettings.ThemeColor.R,
             G = getgenv().QuarkSettings.ThemeColor.G,
@@ -185,7 +227,7 @@ local function LoadConfig()
         BlackScreen = false,
         TargetMoney = 0, 
         FarmModeIndex = 1,
-        AutoBuyLucky = true, -- Значение по умолчанию
+        AutoBuyLucky = true,
         ThemeColor = Color3.fromRGB(15, 15, 20) 
     }
 
@@ -215,7 +257,6 @@ local function LoadConfig()
             Defaults.TargetMoney = result.TargetMoney or 300000
             Defaults.FarmModeIndex = result.FarmModeIndex or 1
             
-            -- ИСПРАВЛЕНИЕ V2: Жесткая проверка
             if result.AutoBuyLucky ~= nil then
                 Defaults.AutoBuyLucky = result.AutoBuyLucky
             else
@@ -236,7 +277,6 @@ end
 
 LoadConfig()
 
--- [[ SETUP UI: ПЕРВЫЙ ЗАПУСК (РЕДИЗАЙН) ]]
 if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "ВСТАВЬ") or getgenv().TelegramChatID == "" then
     if CoreGui:FindFirstChild("QuarkSetup") then CoreGui:FindFirstChild("QuarkSetup"):Destroy() end
 
@@ -245,11 +285,10 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
     SetupScreen.Parent = CoreGui
     SetupScreen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     
-    -- Основной фрейм (стиль как у Main UI)
     local Frame = Instance.new("Frame")
     Frame.Size = UDim2.new(0, 420, 0, 280)
     Frame.Position = UDim2.new(0.5, -210, 0.5, -140)
-    Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25) -- Темная тема
+    Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
     Frame.BorderSizePixel = 0
     Frame.Parent = SetupScreen
     Frame.Active = true
@@ -261,7 +300,6 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
     Stroke.Thickness = 1.5
     Stroke.Transparency = 0.5
     
-    -- Заголовок
     local TitleBar = Instance.new("Frame", Frame)
     TitleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     TitleBar.BackgroundTransparency = 0.95
@@ -276,7 +314,6 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
     Title.Font = Enum.Font.GothamBold
     Title.TextSize = 18
     
-    -- Поля ввода
     local function CreateNiceInput(placeholder, pos, titleText)
         local Container = Instance.new("Frame", Frame)
         Container.Size = UDim2.new(0.9, 0, 0, 55)
@@ -308,7 +345,7 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
         Box.Text = ""
         Box.BackgroundTransparency = 1
         Box.TextColor3 = Color3.fromRGB(255, 255, 255)
-        Box.Font = Enum.Font.Code -- Code шрифт для токенов
+        Box.Font = Enum.Font.Code
         Box.TextSize = 13
         Box.TextXAlignment = Enum.TextXAlignment.Left
         
@@ -318,7 +355,6 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
     local TokenBox = CreateNiceInput("Введите Bot Token...", 60, "Telegram Bot Token")
     local ChatIDBox = CreateNiceInput("Введите Chat ID...", 125, "Telegram Chat ID")
     
-    -- Кнопка сохранения
     local SaveBtn = Instance.new("TextButton", Frame)
     SaveBtn.Size = UDim2.new(0.9, 0, 0, 40)
     SaveBtn.Position = UDim2.new(0.05, 0, 0, 210)
@@ -340,7 +376,6 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
             getgenv().TelegramChatID = ChatIDBox.Text
             SaveConfig()
             
-            -- Анимация закрытия
             TweenService:Create(Frame, TweenInfo.new(0.3), {Size = UDim2.new(0, 420, 0, 0), BackgroundTransparency = 1}):Play()
             for _, v in pairs(Frame:GetDescendants()) do
                 if v:IsA("TextLabel") or v:IsA("TextBox") or v:IsA("TextButton") then
@@ -367,7 +402,6 @@ end
 getgenv().QuarkLastUpdateId = getgenv().QuarkLastUpdateId or 0
 local lastUpdateId = getgenv().QuarkLastUpdateId 
 
--- [[ ТЕЛЕГРАМ СИСТЕМА ]]
 local function SendTelegramMessage(text, msgType, replyMarkup)
     local typeKey = msgType or "info"
 
@@ -415,11 +449,9 @@ local function SendTelegramMessage(text, msgType, replyMarkup)
     end
 end
 
--- [[ ЛОГГЕР ]]
 local Log 
 local LogContainer = nil
 
--- [[ КОМАНДЫ ТЕЛЕГРАМ ]]
 local isListening = false
 
 local function ClearWebhook()
@@ -533,16 +565,12 @@ local function HandleCommands()
     end)
 end
 
--- [[ UI СИСТЕМА (НОВАЯ: КАТЕГОРИИ И РАСКРЫВАЮЩИЕСЯ СПИСКИ) ]]
 local DebugUI = {}
 local MainFrame = nil
 local UIGradient = nil
 
 local function UpdateGlassEffect()
     if not MainFrame then return end
-    
-    -- Фикс: Больше не создаем BlurEffect в Lighting (убираем размытие мира)
-    -- Вместо этого меняем стиль самого фрейма
     
     if not UIGradient then
         UIGradient = Instance.new("UIGradient")
@@ -554,7 +582,7 @@ local function UpdateGlassEffect()
         }
         UIGradient.Transparency = NumberSequence.new{
             NumberSequenceKeypoint.new(0, 0),
-            NumberSequenceKeypoint.new(0.5, 0.2), -- Легкий блик
+            NumberSequenceKeypoint.new(0.5, 0.2), 
             NumberSequenceKeypoint.new(1, 0)
         }
         UIGradient.Parent = MainFrame
@@ -562,13 +590,11 @@ local function UpdateGlassEffect()
     end
     
     if getgenv().QuarkSettings.GlassEffect then
-        -- Эффект включен: добавляем градиент и делаем более прозрачным
         UIGradient.Enabled = true
         TweenService:Create(MainFrame, TweenInfo.new(0.5), {BackgroundTransparency = 0.4}):Play()
         MainFrame.UIStroke.Transparency = 0.4 
         MainFrame.UIStroke.Color = Color3.fromRGB(150, 200, 255)
     else
-        -- Эффект выключен: убираем градиент и возвращаем обычную прозрачность
         UIGradient.Enabled = false
         TweenService:Create(MainFrame, TweenInfo.new(0.5), {BackgroundTransparency = getgenv().QuarkSettings.Transparency}):Play()
         MainFrame.UIStroke.Transparency = 0.85
@@ -594,7 +620,7 @@ function DebugUI:Create()
     MainFrame.BackgroundTransparency = getgenv().QuarkSettings.Transparency
     MainFrame.BorderSizePixel = 0
     MainFrame.Position = UDim2.new(0.02, 0, 0.3, 0)
-    MainFrame.Size = UDim2.new(0, 450, 0, 500) -- Увеличил высоту
+    MainFrame.Size = UDim2.new(0, 450, 0, 500)
     MainFrame.Active = true
     MainFrame.Draggable = true
     MainFrame.ClipsDescendants = true
@@ -685,7 +711,6 @@ function DebugUI:Create()
     UIListLayout_Set.SortOrder = Enum.SortOrder.LayoutOrder
     UIListLayout_Set.Padding = UDim.new(0, 8)
 
-    -- [[ UI COMPONENTS HELPERS ]]
     local function CreateTabButton(text, active)
         local Btn = Instance.new("TextButton")
         Btn.Parent = TabContainer
@@ -719,12 +744,11 @@ function DebugUI:Create()
         TweenService:Create(SetTabBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0.85}):Play()
     end)
 
-    -- НОВАЯ ФУНКЦИЯ: Раскрывающаяся категория
     local function CreateCategory(name)
         local CategoryFrame = Instance.new("Frame")
         CategoryFrame.Parent = SettingsPage
         CategoryFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-        CategoryFrame.Size = UDim2.new(1, -10, 0, 35) -- Начальная высота (закрыто)
+        CategoryFrame.Size = UDim2.new(1, -10, 0, 35)
         CategoryFrame.ClipsDescendants = true
         Instance.new("UICorner", CategoryFrame).CornerRadius = UDim.new(0, 6)
 
@@ -752,7 +776,7 @@ function DebugUI:Create()
         ContentFrame.Parent = CategoryFrame
         ContentFrame.BackgroundTransparency = 1
         ContentFrame.Position = UDim2.new(0, 0, 0, 35)
-        ContentFrame.Size = UDim2.new(1, 0, 0, 0) -- Высота автоматом
+        ContentFrame.Size = UDim2.new(1, 0, 0, 0)
         
         local ContentLayout = Instance.new("UIListLayout")
         ContentLayout.Parent = ContentFrame
@@ -785,7 +809,6 @@ function DebugUI:Create()
         return ContentFrame
     end
 
-    -- Хелпер для элементов внутри категории
     local function CreateToggleIn(parent, text, defaultState, callback)
         local Frame = Instance.new("Frame")
         Frame.Parent = parent
@@ -879,7 +902,6 @@ function DebugUI:Create()
         end)
     end
 
-    -- НОВАЯ ФУНКЦИЯ: Dropdown/Cycler для режима
     local function CreateModeSelector(parent, text, modes, currentIdx, callback)
         local Frame = Instance.new("Frame")
         Frame.Parent = parent
@@ -980,14 +1002,11 @@ function DebugUI:Create()
         end)
     end
     
-    -- [[ СБОРКА ИНТЕРФЕЙСА ПО КАТЕГОРИЯМ ]]
-
     local MainCat = CreateCategory("Основные Настройки")
     CreateToggleIn(MainCat, "Переключатель логов-управления Telegram", getgenv().QuarkSettings.TelegramEnabled, function(v) getgenv().QuarkSettings.TelegramEnabled = v end)
     CreateToggleIn(MainCat, "Логи в Меню (UI)", getgenv().QuarkSettings.UILogging, function(v) getgenv().QuarkSettings.UILogging = v end)
 
     local FarmCat = CreateCategory("Настройки Фарма")
-    -- Выбор режима
     CreateModeSelector(FarmCat, "Режим Фарма", FarmModes, getgenv().QuarkSettings.FarmModeIndex, function(idx)
         getgenv().QuarkSettings.FarmModeIndex = idx
     end)
@@ -997,10 +1016,9 @@ function DebugUI:Create()
     end)
     
     local LuckyCat = CreateCategory("Lucky Farm Опции")
-    -- ФИКС: Явно указываем обновление и сохранение для AutoBuyLucky
     CreateToggleIn(LuckyCat, "Авто-Покупка Стрел", getgenv().QuarkSettings.AutoBuyLucky, function(v) 
         getgenv().QuarkSettings.AutoBuyLucky = v 
-        SaveConfig() -- Принудительное сохранение при клике
+        SaveConfig()
     end)
     
     local VisualCat = CreateCategory("Внешний вид (UI)")
@@ -1015,13 +1033,12 @@ function DebugUI:Create()
         end
     end)
 
-    -- НОВАЯ КАТЕГОРИЯ: SAFE MODE
     local SafeModeCat = CreateCategory("Оптимизация")
     CreateToggleIn(SafeModeCat, "Оптимизация (FPS/GPU)", getgenv().QuarkSettings.SafeMode, function(v)
         getgenv().QuarkSettings.SafeMode = v
         UpdateSafeModeState()
     end)
-    CreateToggleIn(SafeModeCat, "  Убрать экран (3D Off)", getgenv().QuarkSettings.BlackScreen, function(v)
+    CreateToggleIn(SafeModeCat, "  Черный экран (3D Off)", getgenv().QuarkSettings.BlackScreen, function(v)
         getgenv().QuarkSettings.BlackScreen = v
         UpdateSafeModeState()
     end)
@@ -1049,7 +1066,6 @@ end
 
 LogContainer = DebugUI:Create()
 
--- [[ ЛОГИРОВАНИЕ (FIXED SCROLL) ]]
 Log = function(text, msgType) 
     SendTelegramMessage(text, msgType)
 
@@ -1111,7 +1127,6 @@ Log = function(text, msgType)
     end)
 end
 
--- [[ НАСТРОЙКИ ФАРМА ]]
 getgenv().TargetMoney = getgenv().QuarkSettings.TargetMoney 
 getgenv().ItemCollectionDelay = 3 
 getgenv().ServerFarmTime = 180 
@@ -1193,8 +1208,6 @@ task.wait(10)
 
 Log("Запуск основного скрипта...", "action")
 
--- [[ ФУНКЦИИ УТИЛИТ (СЕРВЕР ХОП и т.д.) ]]
-
 getgenv().standList =  {
     ["The World"] = true,
     ["Star Platinum"] = true,
@@ -1210,7 +1223,6 @@ getgenv().NPCTimeOut = 15
 getgenv().HamonCharge = 90 
 getgenv().autoRequiem = false
 
--- СИСТЕМА ФАЙЛОВ ПОЛЬЗОВАТЕЛЯ И ВРЕМЕНИ
 local UserData = {}
 local UserFile = "QuarkBeta_"..LocalPlayer.Name..".txt"
 local FileLoaded = pcall(function()
@@ -1219,7 +1231,7 @@ end)
 
 if not FileLoaded then
     UserData = {
-        ["Time"] = tick(), -- Сохраняем время первого запуска
+        ["Time"] = tick(), 
         ["Prestige"] = LocalPlayer.PlayerStats.Prestige.Value,
         ["Level"] = LocalPlayer.PlayerStats.Level.Value
     }
@@ -1237,7 +1249,6 @@ local function GetFarmDuration()
     return string.format("%02d:%02d:%02d", hours, minutes, seconds)
 end
 
--- СИСТЕМА СЕРВЕР ХОПА
 local PlaceID = game.PlaceId
 local serverHopData = {}
 local serverHopFile = pcall(function()
@@ -1292,44 +1303,34 @@ end
 
 local function Teleport()
     Log("Инициирую Server Hop...", "action")
-    -- Пробуем через GUI сервис удалить ошибку, если она есть
     pcall(function() game:GetService("GuiService"):ClearError() end)
     
     while task.wait(1) do 
         TPReturner()
-        -- Если TPReturner не сработал (например, нет HTTP), пробуем обычный реджон
         task.wait(3)
         TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
     end
 end
 
--- [[ УЛУЧШЕННЫЙ REJOIN (С ИГНОРИРОВАНИЕМ ОШИБОК) ]]
--- Этот код запускается при разрыве соединения
 local function ForceRejoin(reason)
-    -- Чтобы не спамить
     if getgenv().IsRejoining then return end
     getgenv().IsRejoining = true
 
     local msg = "⚠️ KICK/CRASH DETECTED: " .. (game.Players.LocalPlayer.Name or "Unknown") .. "\nПричина: " .. (reason or "Неизвестна")
     if Log then Log(msg, "error") end
     
-    -- Запуск бесконечного цикла попыток перезахода
     task.spawn(function()
         while true do
-            -- 1. Пробуем Server Hop (лучший вариант)
             TPReturner()
             task.wait(2)
             
-            -- 2. Пробуем прямой Rejoin
             TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
             task.wait(5)
             
-            -- Очистка ошибки, чтобы скрипт не висел
             pcall(function() game:GetService("GuiService"):ClearError() end)
         end
     end)
     
-    -- Если поддерживается, ставим скрипт в очередь на выполнение после телепорта
     if queue_on_teleport then
         queue_on_teleport([[
             repeat task.wait() until game:IsLoaded()
@@ -1338,12 +1339,10 @@ local function ForceRejoin(reason)
     end
 end
 
--- Отслеживание окна с ошибкой (любой ошибки, включая интернет и AFK)
 game:GetService("CoreGui").DescendantAdded:Connect(function(child)
     if child.Name == "ErrorPrompt" then
         local GrabError = child:FindFirstChild("ErrorMessage", true)
         if GrabError then
-            -- Не ждем, сразу запускаем процедуру реджона
             task.spawn(function()
                 local Reason = GrabError.Text
                 ForceRejoin(Reason)
@@ -1352,12 +1351,10 @@ game:GetService("CoreGui").DescendantAdded:Connect(function(child)
     end
 end)
 
--- Отслеживание отключения NetworkClient (потеря интернета)
 game:GetService("NetworkClient").ChildRemoved:Connect(function()
     ForceRejoin("Потеря соединения (NetworkClient Disconnected)")
 end)
 
--- Отслеживание события TeleportInitFailed (если не удалось телепортироваться)
 TeleportService.TeleportInitFailed:Connect(function(player, result, errorMessage)
     if player == Players.LocalPlayer then
         ForceRejoin("Teleport Failed: " .. tostring(result) .. " " .. tostring(errorMessage))
@@ -1365,7 +1362,6 @@ TeleportService.TeleportInitFailed:Connect(function(player, result, errorMessage
 end)
 
 
--- [[ NEW HOOK FROM LUCKY FARM (V3 FIX) ]]
 if hookmetamethod and newcclosure then
     pcall(function()
         local oldNc
@@ -1380,13 +1376,9 @@ if hookmetamethod and newcclosure then
     end)
 end
 
--- =========================================================================================
--- [[ МОДУЛЬ: LUCKY FARM (ИНТЕГРИРОВАННЫЙ & ИСПРАВЛЕННЫЙ V3) ]]
--- =========================================================================================
 local function StartLuckyFarmLoop()
     Log("🌟 АКТИВАЦИЯ РЕЖИМА LUCKY FARM (V3 FIX) 🌟", "lucky")
     
-    -- Оптимизация графики теперь контролируется глобальным Safe Mode
     if not getgenv().QuarkSettings.SafeMode then
         Log("Совет: Включите Safe Mode в настройках для лучшего FPS!", "warn")
     end
@@ -1414,7 +1406,6 @@ local function StartLuckyFarmLoop()
         return CountLuckyArrows() >= 10
     end
 
-    -- САМЫЙ НАДЁЖНЫЙ ДЕТЕКТ СООБЩЕНИЯ О ЛИМИТЕ
     local function DetectLimitMessage()
         local foundText = nil
         pcall(function()
@@ -1424,14 +1415,12 @@ local function StartLuckyFarmLoop()
                         if obj.Visible and obj.Text ~= "" then
                             local lowerText = string.lower(obj.Text)
                             if string.find(lowerText, "10 lucky arrow") then
-                                -- Дополнительно проверяем красный цвет (ошибка обычно красная)
                                 local isRed = obj.TextColor3.R > 0.8 and obj.TextColor3.G < 0.3 and obj.TextColor3.B < 0.3
-                                if isRed or true then  -- true на случай если цвет не точно красный
+                                if isRed or true then
                                     foundText = obj.Text
                                     return true
                                 end
                             end
-                            -- Логируем подозрительные тексты для дебага
                             if string.find(lowerText, "lucky") or string.find(lowerText, "arrow") then
                                 Log("Проверка GUI: найден текст '" .. obj.Text .. "' (цвет: " .. tostring(obj.TextColor3) .. ")", "info")
                             end
@@ -1490,7 +1479,6 @@ local function StartLuckyFarmLoop()
         UpdateItems()
         Log("Lucky Farm: Предметов: " .. #SpawnedItems .. " | Проверка на лимит-сообщение...", "lucky")
 
-        -- ДЕТЕКТ ЛИМИТА
         local detected, fullText = DetectLimitMessage()
         if not limitNotified and detected then
             local luckyCount = CountLuckyArrows()
@@ -1512,7 +1500,6 @@ local function StartLuckyFarmLoop()
             while true do task.wait(999999) end
         end
 
-        -- Остальной фарм (сбор, продажа, покупка)
         for _, item in pairs(SpawnedItems) do
             if item.Obj and item.Obj.Parent and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                 local BodyVelocity = Instance.new("BodyVelocity")
@@ -1574,7 +1561,6 @@ local function StartLuckyFarmLoop()
         task.wait(2)
     end
 end
--- =========================================================================================
 
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer and game.Players.LocalPlayer.Character
 local LocalPlayer = game.Players.LocalPlayer
@@ -1584,22 +1570,19 @@ local RemoteFunction, RemoteEvent = Character.RemoteFunction, Character.RemoteEv
 local HRP = Character.PrimaryPart
 local dontTPOnDeath = true
 
--- [[ ПРОВЕРКА НА ЗАВЕРШЕНИЕ / ВЫБОР РЕЖИМА ПРИ ЗАПУСКЕ ]]
 local mode = getgenv().QuarkSettings.FarmModeIndex
 
 if LocalPlayer.PlayerStats.Level.Value == 50 then
     local money = LocalPlayer.PlayerStats.Money.Value
     
-    if mode == 2 then -- Money -> Lucky
+    if mode == 2 then 
         if money >= getgenv().TargetMoney then
-            StartLuckyFarmLoop() -- Сразу прыгаем в лаки фарм
+            StartLuckyFarmLoop() 
         end
-    elseif mode == 3 then -- Prestige/Level -> Lucky
-        -- Если 50 лвл, то сразу лаки фарм, деньги не важны
+    elseif mode == 3 then 
         StartLuckyFarmLoop()
-    elseif mode == 4 then -- Just Prestige
-        -- Если 50 лвл, ничего не делаем, скрипт ниже решит (престиж или стоп)
-    else -- Standart (1)
+    elseif mode == 4 then 
+    else 
         if money >= getgenv().TargetMoney then
              if getgenv().QuarkSettings.NotifyFinish then
                 local duration = GetFarmDuration()
@@ -1684,10 +1667,11 @@ end
 end
 
 local function useItem(aItem, amount)
-    Log("Юз предмета: " .. aItem, "action")
+    Log("Использую предмет: " .. aItem, "action")
     local item = LocalPlayer.Backpack:WaitForChild(aItem, 5)
 
     if not item then
+        Log("Предмет не найден: " .. aItem, "warn")
         Teleport()
     end
 
@@ -1712,7 +1696,7 @@ local function attemptStandFarm()
         repeat task.wait() until LocalPlayer.PlayerStats.Stand.Value ~= "None"
 
         if not getgenv().standList[LocalPlayer.PlayerStats.Stand.Value] then
-            Log("Стенд плохой. Сброс (Roka)...", "info")
+            Log("Стенд " .. LocalPlayer.PlayerStats.Stand.Value .. " плохой. Roka...", "info")
             useItem("Rokakaka", "II")
         elseif getgenv().standList[LocalPlayer.PlayerStats.Stand.Value] then
             local msg = "🎯 ПОЛУЧЕН СТЕНД: ".. LocalPlayer.PlayerStats.Stand.Value
@@ -1722,7 +1706,7 @@ local function attemptStandFarm()
         end
 
     elseif not getgenv().standList[LocalPlayer.PlayerStats.Stand.Value] then
-        Log("Сброс текущего стенда...", "info")
+        Log("Сброс текущего стенда " .. LocalPlayer.PlayerStats.Stand.Value .. "...", "info")
         useItem("Rokakaka", "II")
     end
 end
@@ -1823,6 +1807,7 @@ local function storyDialogue()
 end
 
 local function killNPC(npcName, playerDistance, dontDestroyOnKill, extraParameters)
+ Log("Атака цели: " .. npcName, "action")
  local NPC = workspace.Living:WaitForChild(npcName,getgenv().NPCTimeOut)
  local beingTargeted = true
     local doneKilled = false
@@ -1961,25 +1946,18 @@ local function autoStory()
         local money = LocalPlayer.PlayerStats.Money.Value
         local mode = getgenv().QuarkSettings.FarmModeIndex
         
-        -- [[ НОВАЯ ЛОГИКА ОКОНЧАНИЯ ФАРМА ]]
-        
-        -- MODE 2: MONEY -> LUCKY
         if mode == 2 then 
             if money >= getgenv().TargetMoney then
                 StartLuckyFarmLoop()
-                return -- Прерываем AutoStory
+                return 
             end
         
-        -- MODE 3: PRESTIGE/LVL -> LUCKY (Игнор денег)
         elseif mode == 3 then
             StartLuckyFarmLoop()
             return
             
-        -- MODE 4: JUST LEVEL/PRESTIGE (Игнор денег и лаки)
         elseif mode == 4 then
-            -- Просто висит на 50, может фармить вампиров для фана
             
-        -- MODE 1: STANDARD (Money -> Stop)
         else 
             if money >= getgenv().TargetMoney then
                 if getgenv().QuarkSettings.NotifyFinish then
@@ -1999,7 +1977,6 @@ local function autoStory()
             end
         end
 
-        -- Если режим требует денег (1 или 2), но их мало -> фармим вампиров
         if (mode == 1 or mode == 2) and money < getgenv().TargetMoney then
             Log("Lvl 50. Фарм Вампиров до: " .. getgenv().TargetMoney, "info")
             local function vampire()
@@ -2268,7 +2245,6 @@ game.Workspace.Living.ChildAdded:Connect(function(character)
         if LocalPlayer.PlayerStats.Level.Value == 50 and LocalPlayer.PlayerStats.Money.Value < getgenv().TargetMoney then
             Log("Смерть на 50 ур. Продолжаю.", "warn")
         elseif LocalPlayer.PlayerStats.Level.Value == 50 then
-            -- Если 50 лвл, то проверяем режим, если лаки фарм - возрождаемся и продолжаем
             if getgenv().QuarkSettings.FarmModeIndex == 2 or getgenv().QuarkSettings.FarmModeIndex == 3 then
                 task.wait(3)
                 StartLuckyFarmLoop()
