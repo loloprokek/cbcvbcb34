@@ -1,6 +1,6 @@
 -- [НАЧАЛО] Quark Beta: Beta Farm (Story + Lucky + Modes)
 -- Объединенный и доработанный скрипт по запросу пользователя.
--- FIX V5: Fix Liquid Glass (No global blur), Safe Mode Sub-settings, Rebranding to Beta.
+-- FIX V6: Improved Anti-AFK (Proactive), Custom Black Screen, Fixed Rejoin Loop, Config Fixes.
 
 -- [[ ГЛОБАЛЬНЫЕ НАСТРОЙКИ ПО УМОЛЧАНИЮ ]] 
 getgenv().TelegramBotToken = "" 
@@ -16,12 +16,31 @@ local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 local UserInputService = game:GetService("UserInputService")
--- [[ МОЩНЫЙ ANTI-AFK ]]
 local VirtualUser = game:GetService("VirtualUser")
-game:GetService("Players").LocalPlayer.Idled:Connect(function()
+
+-- [[ МОЩНЫЙ ANTI-AFK v2 (PROACTIVE) ]]
+-- Старый метод (Idled)
+Players.LocalPlayer.Idled:Connect(function()
     VirtualUser:CaptureController()
     VirtualUser:ClickButton2(Vector2.new())
-    print("Quark: Anti-AFK сработал")
+    print("Quark: Anti-AFK (Idled) сработал")
+end)
+
+-- Новый метод (Proactive Loop) - предотвращает кик за 20 минут
+task.spawn(function()
+    while true do
+        task.wait(60) -- Каждую минуту
+        pcall(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+            -- Легкое движение камеры, если возможно, чтобы сбросить внутренние таймеры
+            local currentCam = workspace.CurrentCamera
+            if currentCam then
+               -- Микро-сдвиг (почти незаметный)
+               -- currentCam.CFrame = currentCam.CFrame * CFrame.Angles(0, 0.0001, 0)
+            end
+        end)
+    end
 end)
 
 -- [[ СИСТЕМА СОХРАНЕНИЯ КОНФИГА ]]
@@ -34,6 +53,67 @@ local FarmModes = {
     "P3/Lvl50 -> Lucky Farm",  -- 3: Сюжет (до упора) -> Покупка/Фарм Лаки (игнор денег)
     "Just Prestige/Level"      -- 4: Только кач, без фарма денег и лаки
 }
+
+-- [[ КАСТОМНЫЙ ЧЕРНЫЙ ЭКРАН ]]
+local BlackScreenGui = nil
+
+local function ToggleBlackScreen(state)
+    if state then
+        if not BlackScreenGui then
+            BlackScreenGui = Instance.new("ScreenGui")
+            BlackScreenGui.Name = "QuarkBlackScreen"
+            BlackScreenGui.Parent = CoreGui
+            BlackScreenGui.IgnoreGuiInset = true
+            BlackScreenGui.DisplayOrder = 9999 -- Поверх всего
+            
+            local MainBG = Instance.new("Frame")
+            MainBG.Name = "Background"
+            MainBG.Size = UDim2.new(1, 0, 1, 0)
+            MainBG.BackgroundColor3 = Color3.fromRGB(5, 5, 10) -- Глубокий черный/синий
+            MainBG.BorderSizePixel = 0
+            MainBG.Parent = BlackScreenGui
+            
+            -- Логотип
+            local Logo = Instance.new("TextLabel")
+            Logo.Text = "⚛️ Quark Beta"
+            Logo.Font = Enum.Font.GothamBold
+            Logo.TextSize = 32
+            Logo.TextColor3 = Color3.fromRGB(150, 150, 255)
+            Logo.Size = UDim2.new(1, 0, 0, 50)
+            Logo.Position = UDim2.new(0, 0, 0.45, 0)
+            Logo.BackgroundTransparency = 1
+            Logo.Parent = MainBG
+            
+            -- Статус
+            local Status = Instance.new("TextLabel")
+            Status.Text = "OPTIMIZED MODE: 3D RENDERING DISABLED"
+            Status.Font = Enum.Font.Code
+            Status.TextSize = 14
+            Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+            Status.Size = UDim2.new(1, 0, 0, 30)
+            Status.Position = UDim2.new(0, 0, 0.52, 0)
+            Status.BackgroundTransparency = 1
+            Status.Parent = MainBG
+            
+            -- Анимация пульсации
+            task.spawn(function()
+                while BlackScreenGui and BlackScreenGui.Parent do
+                    TweenService:Create(Logo, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {TextColor3 = Color3.fromRGB(200, 200, 255)}):Play()
+                    task.wait(1.5)
+                    TweenService:Create(Logo, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {TextColor3 = Color3.fromRGB(100, 100, 200)}):Play()
+                    task.wait(1.5)
+                end
+            end)
+        end
+        BlackScreenGui.Enabled = true
+        RunService:Set3dRenderingEnabled(false)
+    else
+        if BlackScreenGui then
+            BlackScreenGui.Enabled = false
+        end
+        RunService:Set3dRenderingEnabled(true)
+    end
+end
 
 -- Глобальная функция Safe Mode
 local function UpdateSafeModeState()
@@ -48,12 +128,13 @@ local function UpdateSafeModeState()
             
             -- Дополнительная опция: Черный экран (отключение 3D)
             if blackScreenEnabled then
-                RunService:Set3dRenderingEnabled(false)
+                ToggleBlackScreen(true)
             else
-                RunService:Set3dRenderingEnabled(true)
+                ToggleBlackScreen(false)
             end
         else
             -- Выключение Safe Mode
+            ToggleBlackScreen(false)
             RunService:Set3dRenderingEnabled(true)
             settings().Rendering.QualityLevel = 10
             if setfpscap then setfpscap(60) end
@@ -74,10 +155,10 @@ local function SaveConfig()
         Transparency = getgenv().QuarkSettings.Transparency,
         GlassEffect = getgenv().QuarkSettings.GlassEffect,
         SafeMode = getgenv().QuarkSettings.SafeMode, 
-        BlackScreen = getgenv().QuarkSettings.BlackScreen, -- Новая настройка
+        BlackScreen = getgenv().QuarkSettings.BlackScreen,
         TargetMoney = getgenv().QuarkSettings.TargetMoney,
         FarmModeIndex = getgenv().QuarkSettings.FarmModeIndex,
-        AutoBuyLucky = getgenv().QuarkSettings.AutoBuyLucky,
+        AutoBuyLucky = getgenv().QuarkSettings.AutoBuyLucky, -- Сохраняем это поле
         ThemeColor = {
             R = getgenv().QuarkSettings.ThemeColor.R,
             G = getgenv().QuarkSettings.ThemeColor.G,
@@ -134,7 +215,7 @@ local function LoadConfig()
             Defaults.TargetMoney = result.TargetMoney or 300000
             Defaults.FarmModeIndex = result.FarmModeIndex or 1
             
-            -- ИСПРАВЛЕНИЕ: Правильная проверка булевого значения
+            -- ИСПРАВЛЕНИЕ V2: Жесткая проверка
             if result.AutoBuyLucky ~= nil then
                 Defaults.AutoBuyLucky = result.AutoBuyLucky
             else
@@ -916,7 +997,11 @@ function DebugUI:Create()
     end)
     
     local LuckyCat = CreateCategory("Lucky Farm Опции")
-    CreateToggleIn(LuckyCat, "Авто-Покупка Стрел", getgenv().QuarkSettings.AutoBuyLucky, function(v) getgenv().QuarkSettings.AutoBuyLucky = v end)
+    -- ФИКС: Явно указываем обновление и сохранение для AutoBuyLucky
+    CreateToggleIn(LuckyCat, "Авто-Покупка Стрел", getgenv().QuarkSettings.AutoBuyLucky, function(v) 
+        getgenv().QuarkSettings.AutoBuyLucky = v 
+        SaveConfig() -- Принудительное сохранение при клике
+    end)
     
     local VisualCat = CreateCategory("Внешний вид (UI)")
     CreateToggleIn(VisualCat, "Эффект Liquid Glass", getgenv().QuarkSettings.GlassEffect, function(v) 
@@ -1207,42 +1292,78 @@ end
 
 local function Teleport()
     Log("Инициирую Server Hop...", "action")
-    while task.wait(0.5) do 
+    -- Пробуем через GUI сервис удалить ошибку, если она есть
+    pcall(function() game:GetService("GuiService"):ClearError() end)
+    
+    while task.wait(1) do 
         TPReturner()
+        -- Если TPReturner не сработал (например, нет HTTP), пробуем обычный реджон
+        task.wait(3)
+        TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
     end
 end
 
--- МГНОВЕННЫЙ REJOIN ПРИ КИКЕ
--- [[ УЛУЧШЕННЫЙ REJOIN (Детект любых ошибок + крашей интернета) ]]
+-- [[ УЛУЧШЕННЫЙ REJOIN (С ИГНОРИРОВАНИЕМ ОШИБОК) ]]
+-- Этот код запускается при разрыве соединения
 local function ForceRejoin(reason)
-    local msg = "⚠️ KICK/CRASH: " .. (game.Players.LocalPlayer.Name or "Unknown") .. "\nПричина: " .. (reason or "Неизвестна")
+    -- Чтобы не спамить
+    if getgenv().IsRejoining then return end
+    getgenv().IsRejoining = true
+
+    local msg = "⚠️ KICK/CRASH DETECTED: " .. (game.Players.LocalPlayer.Name or "Unknown") .. "\nПричина: " .. (reason or "Неизвестна")
     if Log then Log(msg, "error") end
     
-    -- Пытаемся сервер хопнуть
-    task.spawn(function() Teleport() end)
+    -- Запуск бесконечного цикла попыток перезахода
+    task.spawn(function()
+        while true do
+            -- 1. Пробуем Server Hop (лучший вариант)
+            TPReturner()
+            task.wait(2)
+            
+            -- 2. Пробуем прямой Rejoin
+            TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
+            task.wait(5)
+            
+            -- Очистка ошибки, чтобы скрипт не висел
+            pcall(function() game:GetService("GuiService"):ClearError() end)
+        end
+    end)
     
-    -- Если сервер хоп завис, пробуем обычный реджон через 3 секунды
-    task.wait(3)
-    game:GetService("TeleportService"):Teleport(game.PlaceId, game.Players.LocalPlayer)
+    -- Если поддерживается, ставим скрипт в очередь на выполнение после телепорта
+    if queue_on_teleport then
+        queue_on_teleport([[
+            repeat task.wait() until game:IsLoaded()
+            print("Quark Rejoined from Kick/Crash")
+        ]])
+    end
 end
 
+-- Отслеживание окна с ошибкой (любой ошибки, включая интернет и AFK)
 game:GetService("CoreGui").DescendantAdded:Connect(function(child)
     if child.Name == "ErrorPrompt" then
         local GrabError = child:FindFirstChild("ErrorMessage", true)
         if GrabError then
-            task.delay(0.5, function()
+            -- Не ждем, сразу запускаем процедуру реджона
+            task.spawn(function()
                 local Reason = GrabError.Text
-                -- Теперь реагируем на ЛЮБОЙ ErrorPrompt, а не только на kick
                 ForceRejoin(Reason)
             end)
         end
     end
 end)
 
--- Дополнительный детектор потери соединения
+-- Отслеживание отключения NetworkClient (потеря интернета)
 game:GetService("NetworkClient").ChildRemoved:Connect(function()
-    ForceRejoin("Потеря соединения с сервером (NetworkClient)")
+    ForceRejoin("Потеря соединения (NetworkClient Disconnected)")
 end)
+
+-- Отслеживание события TeleportInitFailed (если не удалось телепортироваться)
+TeleportService.TeleportInitFailed:Connect(function(player, result, errorMessage)
+    if player == Players.LocalPlayer then
+        ForceRejoin("Teleport Failed: " .. tostring(result) .. " " .. tostring(errorMessage))
+    end
+end)
+
 
 -- [[ NEW HOOK FROM LUCKY FARM (V3 FIX) ]]
 if hookmetamethod and newcclosure then
