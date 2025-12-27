@@ -16,6 +16,13 @@ local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 local UserInputService = game:GetService("UserInputService")
+-- [[ МОЩНЫЙ ANTI-AFK ]]
+local VirtualUser = game:GetService("VirtualUser")
+game:GetService("Players").LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+    print("Quark: Anti-AFK сработал")
+end)
 
 -- [[ СИСТЕМА СОХРАНЕНИЯ КОНФИГА ]]
 local ConfigFileName = "QuarkBeta_Settings.json"
@@ -94,10 +101,10 @@ local function LoadConfig()
         Transparency = 0.2,
         GlassEffect = false,
         SafeMode = false,
-        BlackScreen = false, -- По умолчанию выключен
-        TargetMoney = 300000, 
+        BlackScreen = false,
+        TargetMoney = 0, 
         FarmModeIndex = 1,
-        AutoBuyLucky = true,
+        AutoBuyLucky = true, -- Значение по умолчанию
         ThemeColor = Color3.fromRGB(15, 15, 20) 
     }
 
@@ -126,7 +133,13 @@ local function LoadConfig()
             Defaults.BlackScreen = result.BlackScreen or false
             Defaults.TargetMoney = result.TargetMoney or 300000
             Defaults.FarmModeIndex = result.FarmModeIndex or 1
-            Defaults.AutoBuyLucky = result.AutoBuyLucky ~= nil and result.AutoBuyLucky or true
+            
+            -- ИСПРАВЛЕНИЕ: Правильная проверка булевого значения
+            if result.AutoBuyLucky ~= nil then
+                Defaults.AutoBuyLucky = result.AutoBuyLucky
+            else
+                Defaults.AutoBuyLucky = true
+            end
             
             if result.ThemeColor then
                 Defaults.ThemeColor = Color3.new(result.ThemeColor.R, result.ThemeColor.G, result.ThemeColor.B)
@@ -137,7 +150,6 @@ local function LoadConfig()
     getgenv().QuarkSettings = Defaults
     getgenv().TargetMoney = getgenv().QuarkSettings.TargetMoney 
     
-    -- Применяем Safe Mode при загрузке
     task.spawn(UpdateSafeModeState)
 end
 
@@ -1201,20 +1213,35 @@ local function Teleport()
 end
 
 -- МГНОВЕННЫЙ REJOIN ПРИ КИКЕ
+-- [[ УЛУЧШЕННЫЙ REJOIN (Детект любых ошибок + крашей интернета) ]]
+local function ForceRejoin(reason)
+    local msg = "⚠️ KICK/CRASH: " .. (game.Players.LocalPlayer.Name or "Unknown") .. "\nПричина: " .. (reason or "Неизвестна")
+    if Log then Log(msg, "error") end
+    
+    -- Пытаемся сервер хопнуть
+    task.spawn(function() Teleport() end)
+    
+    -- Если сервер хоп завис, пробуем обычный реджон через 3 секунды
+    task.wait(3)
+    game:GetService("TeleportService"):Teleport(game.PlaceId, game.Players.LocalPlayer)
+end
+
 game:GetService("CoreGui").DescendantAdded:Connect(function(child)
     if child.Name == "ErrorPrompt" then
-        local GrabError = child:FindFirstChild("ErrorMessage",true)
+        local GrabError = child:FindFirstChild("ErrorMessage", true)
         if GrabError then
-            task.delay(0.2, function()
+            task.delay(0.5, function()
                 local Reason = GrabError.Text
-                if Reason:match("kick") or Reason:match("You") or Reason:match("conn") or Reason:match("rejoin") then
-                    local msg = "⚠️ KICK (Instant Rejoin): " .. LocalPlayer.Name .. "\nПричина: " .. Reason
-                    Log(msg, "error") 
-                    Teleport()
-                end
+                -- Теперь реагируем на ЛЮБОЙ ErrorPrompt, а не только на kick
+                ForceRejoin(Reason)
             end)
         end
     end
+end)
+
+-- Дополнительный детектор потери соединения
+game:GetService("NetworkClient").ChildRemoved:Connect(function()
+    ForceRejoin("Потеря соединения с сервером (NetworkClient)")
 end)
 
 -- [[ NEW HOOK FROM LUCKY FARM (V3 FIX) ]]
