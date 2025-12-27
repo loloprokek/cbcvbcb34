@@ -67,7 +67,7 @@ local function ToggleBlackScreen(state)
             ContentHolder.Parent = MainBG
 
             local Logo = Instance.new("TextLabel")
-            Logo.Text = "ATOM QUARK"
+            Logo.Text = "QUARK BETA"
             Logo.Font = Enum.Font.GothamBold
             Logo.TextSize = 40
             Logo.TextColor3 = Color3.fromRGB(120, 120, 255)
@@ -1702,10 +1702,10 @@ local function attemptStandFarm()
         repeat task.wait() until LocalPlayer.PlayerStats.Stand.Value ~= "None"
 
         if not getgenv().standList[LocalPlayer.PlayerStats.Stand.Value] then
-            Log("Стенд " .. LocalPlayer.PlayerStats.Stand.Value .. " плохой. Roka...", "info")
+            Log("Стенд " .. LocalPlayer.PlayerStats.Stand.Value .. " не нужнен. Roka...", "info")
             useItem("Rokakaka", "II")
         elseif getgenv().standList[LocalPlayer.PlayerStats.Stand.Value] then
-            local msg = "🎯 ПОЛУЧЕН СТЕНД: ".. LocalPlayer.PlayerStats.Stand.Value
+            local msg = "ПОЛУЧЕН СТЕНД: ".. LocalPlayer.PlayerStats.Stand.Value
             Log(msg, "success")
             dontTPOnDeath = true
             Teleport()
