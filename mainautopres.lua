@@ -23,67 +23,7 @@ game:GetService("Players").LocalPlayer.Idled:Connect(function()
     VirtualUser:ClickButton2(Vector2.new())
     print("Quark: Anti-AFK сработал")
 end)
--- [[ QUARK BLACK SCREEN MANAGER ]]
-local function ToggleBlackScreen(state)
-    local CoreGui = game:GetService("CoreGui")
-    local ScreenName = "QuarkAFKScreen"
-    local Existing = CoreGui:FindFirstChild(ScreenName)
 
-    if state then
-        -- Если экрана нет, создаем его
-        if not Existing then
-            local Gui = Instance.new("ScreenGui")
-            Gui.Name = ScreenName
-            Gui.Parent = CoreGui
-            Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-            Gui.IgnoreGuiInset = true -- Чтобы закрыть даже верхнюю полоску
-            
-            -- Черный фон (глубокий темно-серый, чтобы было стильно)
-            local BG = Instance.new("Frame")
-            BG.Size = UDim2.new(1, 0, 1, 0)
-            BG.BackgroundColor3 = Color3.fromRGB(12, 12, 12) 
-            BG.BorderSizePixel = 0
-            BG.Parent = Gui
-            
-            -- Логотип QUARK
-            local Title = Instance.new("TextLabel")
-            Title.Text = "QUARK BETA"
-            Title.Font = Enum.Font.GothamBold
-            Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-            Title.TextSize = 42
-            Title.BackgroundTransparency = 1
-            Title.Position = UDim2.new(0.5, 0, 0.45, 0)
-            Title.AnchorPoint = Vector2.new(0.5, 0.5)
-            Title.Parent = BG
-            
-            -- Подпись
-            local Sub = Instance.new("TextLabel")
-            Sub.Text = "AFK MODE • CPU SAVER"
-            Sub.Font = Enum.Font.Gotham
-            Sub.TextColor3 = Color3.fromRGB(100, 100, 255) -- Легкий синий акцент
-            Sub.TextSize = 16
-            Sub.BackgroundTransparency = 1
-            Sub.Position = UDim2.new(0.5, 0, 0.52, 0)
-            Sub.AnchorPoint = Vector2.new(0.5, 0.5)
-            Sub.Parent = BG
-            
-            -- Анимация (пульсация текста)
-            task.spawn(function()
-                local ts = game:GetService("TweenService")
-                local ti = TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
-                ts:Create(Sub, ti, {TextTransparency = 0.6}):Play()
-            end)
-        end
-        
-        -- Выключаем 3D мир (экономия ресурсов)
-        game:GetService("RunService"):Set3dRenderingEnabled(false)
-    else
-        -- Включаем 3D мир обратно
-        game:GetService("RunService"):Set3dRenderingEnabled(true)
-        -- Удаляем черный экран
-        if Existing then Existing:Destroy() end
-    end
-end
 -- [[ СИСТЕМА СОХРАНЕНИЯ КОНФИГА ]]
 local ConfigFileName = "QuarkBeta_Settings.json"
 
@@ -97,46 +37,25 @@ local FarmModes = {
 
 -- Глобальная функция Safe Mode
 local function UpdateSafeModeState()
-    local safeEnabled = getgenv().QuarkSettings.SafeMode
-    local blackEnabled = getgenv().QuarkSettings.BlackScreen
+    local safeModeEnabled = getgenv().QuarkSettings.SafeMode
+    local blackScreenEnabled = getgenv().QuarkSettings.BlackScreen
 
     pcall(function()
-        -- 1. Управление графикой (3D рендер)
-        if safeEnabled and blackEnabled then
-            RunService:Set3dRenderingEnabled(false)
-        else
-            RunService:Set3dRenderingEnabled(true)
-        end
-
-        -- 2. Управление черным экраном (Визуал Quark)
-        local overlay = CoreGui:FindFirstChild("QuarkOverlay")
-        if safeEnabled and blackEnabled then
-            if not overlay then
-                local sg = Instance.new("ScreenGui", CoreGui)
-                sg.Name = "QuarkOverlay"
-                sg.IgnoreGuiInset = true
-                local f = Instance.new("Frame", sg)
-                f.Size = UDim2.new(1,0,1,0)
-                f.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
-                f.BorderSizePixel = 0
-                local t = Instance.new("TextLabel", f)
-                t.Text = "QUARK BETA\n[ AFK MODE ACTIVE ]"
-                t.Size = UDim2.new(1,0,1,0)
-                t.TextColor3 = Color3.fromRGB(80, 80, 255)
-                t.Font = Enum.Font.GothamBold
-                t.TextSize = 28
-                t.BackgroundTransparency = 1
+        if safeModeEnabled then
+            -- Базовая оптимизация (всегда при Safe Mode)
+            settings().Rendering.QualityLevel = 1
+            if setfpscap then setfpscap(30) end
+            
+            -- Дополнительная опция: Черный экран (отключение 3D)
+            if blackScreenEnabled then
+                RunService:Set3dRenderingEnabled(false)
+            else
+                RunService:Set3dRenderingEnabled(true)
             end
         else
-            if overlay then overlay:Destroy() end
-        end
-
-        -- 3. Настройки производительности
-        if safeEnabled then
-            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-            if setfpscap then setfpscap(30) end
-        else
-            settings().Rendering.QualityLevel = Enum.QualityLevel.Level10
+            -- Выключение Safe Mode
+            RunService:Set3dRenderingEnabled(true)
+            settings().Rendering.QualityLevel = 10
             if setfpscap then setfpscap(60) end
         end
     end)
