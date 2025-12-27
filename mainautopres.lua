@@ -97,25 +97,46 @@ local FarmModes = {
 
 -- Глобальная функция Safe Mode
 local function UpdateSafeModeState()
-    local safeModeEnabled = getgenv().QuarkSettings.SafeMode
-    local blackScreenEnabled = getgenv().QuarkSettings.BlackScreen
+    local safeEnabled = getgenv().QuarkSettings.SafeMode
+    local blackEnabled = getgenv().QuarkSettings.BlackScreen
 
     pcall(function()
-        if safeModeEnabled then
-            settings().Rendering.QualityLevel = 1
-            if setfpscap then setfpscap(30) end
-            
-            if blackScreenEnabled then
-                CreateQuarkOverlay(true) -- Рисуем наш логотип
-                RunService:Set3dRenderingEnabled(false) -- Выключаем 3D
-            else
-                CreateQuarkOverlay(false)
-                RunService:Set3dRenderingEnabled(true)
+        -- 1. Управление графикой (3D рендер)
+        if safeEnabled and blackEnabled then
+            RunService:Set3dRenderingEnabled(false)
+        else
+            RunService:Set3dRenderingEnabled(true)
+        end
+
+        -- 2. Управление черным экраном (Визуал Quark)
+        local overlay = CoreGui:FindFirstChild("QuarkOverlay")
+        if safeEnabled and blackEnabled then
+            if not overlay then
+                local sg = Instance.new("ScreenGui", CoreGui)
+                sg.Name = "QuarkOverlay"
+                sg.IgnoreGuiInset = true
+                local f = Instance.new("Frame", sg)
+                f.Size = UDim2.new(1,0,1,0)
+                f.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
+                f.BorderSizePixel = 0
+                local t = Instance.new("TextLabel", f)
+                t.Text = "QUARK BETA\n[ AFK MODE ACTIVE ]"
+                t.Size = UDim2.new(1,0,1,0)
+                t.TextColor3 = Color3.fromRGB(80, 80, 255)
+                t.Font = Enum.Font.GothamBold
+                t.TextSize = 28
+                t.BackgroundTransparency = 1
             end
         else
-            CreateQuarkOverlay(false)
-            RunService:Set3dRenderingEnabled(true)
-            settings().Rendering.QualityLevel = 10
+            if overlay then overlay:Destroy() end
+        end
+
+        -- 3. Настройки производительности
+        if safeEnabled then
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+            if setfpscap then setfpscap(30) end
+        else
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level10
             if setfpscap then setfpscap(60) end
         end
     end)
