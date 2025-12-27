@@ -42,6 +42,7 @@ local FarmModes = {
 
 local BlackScreenGui = nil
 local StatsUpdateLoop = nil
+local UpdateSafeModeState -- Forward declaration
 
 local function ToggleBlackScreen(state)
     if state then
@@ -135,7 +136,7 @@ local function ToggleBlackScreen(state)
 
             DisableBtn.MouseButton1Click:Connect(function()
                 getgenv().QuarkSettings.BlackScreen = false
-                ToggleBlackScreen(false)
+                if UpdateSafeModeState then UpdateSafeModeState() end
             end)
             
             task.spawn(function()
@@ -148,7 +149,7 @@ local function ToggleBlackScreen(state)
             end)
         end
         BlackScreenGui.Enabled = true
-        RunService:Set3dRenderingEnabled(false)
+        -- RunService:Set3dRenderingEnabled(false) -- УБРАНО ОТСЮДА, ТЕПЕРЬ УПРАВЛЯЕТСЯ В UpdateSafeModeState
     else
         if BlackScreenGui then
             BlackScreenGui.Enabled = false
@@ -157,27 +158,32 @@ local function ToggleBlackScreen(state)
             StatsUpdateLoop:Disconnect()
             StatsUpdateLoop = nil
         end
-        RunService:Set3dRenderingEnabled(true)
+        -- RunService:Set3dRenderingEnabled(true) -- УБРАНО ОТСЮДА
     end
 end
 
-local function UpdateSafeModeState()
+UpdateSafeModeState = function()
     local safeModeEnabled = getgenv().QuarkSettings.SafeMode
     local blackScreenEnabled = getgenv().QuarkSettings.BlackScreen
 
     pcall(function()
         if safeModeEnabled then
+            -- Базовая оптимизация из файла тес.txt
             settings().Rendering.QualityLevel = 1
             if setfpscap then setfpscap(30) end
             
             if blackScreenEnabled then
-                ToggleBlackScreen(true)
+                RunService:Set3dRenderingEnabled(false)
+                ToggleBlackScreen(true) -- Показываем GUI
             else
-                ToggleBlackScreen(false)
+                RunService:Set3dRenderingEnabled(true)
+                ToggleBlackScreen(false) -- Скрываем GUI
             end
         else
-            ToggleBlackScreen(false)
+            -- Выключение Safe Mode
             RunService:Set3dRenderingEnabled(true)
+            ToggleBlackScreen(false) -- Скрываем GUI
+            
             settings().Rendering.QualityLevel = 10
             if setfpscap then setfpscap(60) end
         end
