@@ -5,7 +5,7 @@
         "note": "d"
     },
     "123123": {
-        "banned": true,
+        "banned": false,
         "expires": 0,
         "note": "Ilayah"
     },
