@@ -2,12 +2,12 @@
     "KEY_ADMIN": {
         "banned": false,
         "expires": 0,
-        "note": "Мой админский ключ"
+        "note": "d"
     },
     "123123": {
-        "banned": false,
+        "banned": true,
         "expires": 0,
-        "note": "Ключ для друга"
+        "note": "Ilayah"
     },
     "KEY_BANNED": {
         "banned": true,
