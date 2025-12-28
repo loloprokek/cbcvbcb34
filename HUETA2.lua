@@ -294,7 +294,7 @@ local function MainScript()
     -- ⬇️⬇️⬇️ ВСТАВЛЯЙ КОД ТВОЕГО ЧИТА/МЕНЮ НИЖЕ ⬇️⬇️⬇️
     -- ========================================================
     
-loadstring(game:HttpGet("https://raw.githubusercontent.com/loloprokek/cbcvbcb34/refs/heads/main/mainautopres.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/loloprokek/cbcvbcb34/refs/heads/main/test.lua"))()
     
     -- ========================================================
     -- ⬆️⬆️⬆️ КОНЕЦ ТВОЕГО КОДА ⬆️⬆️⬆️
@@ -318,3 +318,4 @@ if isfile and isfile(KeySaveFile) then
 else
     ShowKeySystem(MainScript)
 end
+
