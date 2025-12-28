@@ -7,11 +7,11 @@
     "123123": {
         "banned": false,
         "expires": 0,
-        "note": "Ilayah"
+        "note": "test"
     },
-    "KEY_BANNED": {
-        "banned": true,
+    "linercit": {
+        "banned": false,
         "expires": 0,
-        "note": "Забанен за слив"
+        "note": "linercit"
     }
 }
