@@ -190,6 +190,7 @@ local function SaveConfig()
         TelegramEnabled = getgenv().QuarkSettings.TelegramEnabled,
         TelegramBotToken = getgenv().TelegramBotToken,
         TelegramChatID = getgenv().TelegramChatID,
+        ManualAlts = getgenv().QuarkSettings.ManualAlts,
         UILogging = getgenv().QuarkSettings.UILogging,
         NotifyInject = getgenv().QuarkSettings.NotifyInject,
         NotifyFinish = getgenv().QuarkSettings.NotifyFinish,
@@ -219,7 +220,8 @@ local function LoadConfig()
         TelegramEnabled = true,     
         UILogging = true,           
         NotifyInject = true,    
-        NotifyFinish = true,    
+        NotifyFinish = true,
+        ManualAlts = {},    
         Filters = { info = true, success = true, warn = true, error = true, action = true, tg = true },
         TGFilters = { info = false, success = false, warn = false, error = false, action = false },
         Transparency = 0.2,
@@ -248,6 +250,7 @@ local function LoadConfig()
             Defaults.UILogging = result.UILogging
             Defaults.NotifyInject = result.NotifyInject
             Defaults.NotifyFinish = result.NotifyFinish
+            if result.ManualAlts then Defaults.ManualAlts = result.ManualAlts end
             Defaults.Filters = result.Filters or Defaults.Filters
             Defaults.TGFilters = result.TGFilters or Defaults.TGFilters
             Defaults.Transparency = result.Transparency or 0.2
@@ -268,7 +271,8 @@ local function LoadConfig()
     end
     
     getgenv().QuarkSettings = Defaults
-    getgenv().TargetMoney = getgenv().QuarkSettings.TargetMoney 
+    getgenv().TargetMoney = getgenv().QuarkSettings.TargetMoney
+    getgenv().MyAlts = getgenv().QuarkSettings.ManualAlts 
     task.spawn(UpdateSafeModeState)
 end
 
@@ -548,6 +552,20 @@ local function HandleCommands()
                                         
                                         elseif cmd == "/help" or cmd == "/start" then
                                             SendControlPanel()
+                                        elseif cmd == "/setalts" then
+    getgenv().QuarkSettings.ManualAlts = {}
+    local cleanText = string.gsub(text, "/setalts", "")
+    for word in string.gmatch(cleanText, "[^,%s]+") do
+        table.insert(getgenv().QuarkSettings.ManualAlts, word)
+    end
+    getgenv().MyAlts = getgenv().QuarkSettings.ManualAlts
+    
+    -- Сохраняем в файл, чтобы не сбилось при перезаходе
+    SaveConfig()
+    
+    local msg = "✅ Конфиг обновлен! Альты:\n" .. table.concat(getgenv().MyAlts, ", ") .. "\n\n(Этот сервер будет заблокирован на 5 мин при встрече)"
+    SendTelegramMessage(msg, "success")
+    Log("[TG] Список альтов сохранен.", "success")
                                             
                                         elseif cmd == "/stats" then
                                             local stats = Players.LocalPlayer.PlayerStats
@@ -1238,9 +1256,8 @@ end
 local function CheckForTeammates(isLoop)
     if not getgenv().MyAlts or #getgenv().MyAlts == 0 then return end
     
-    -- Пишем лог только при первой проверке, чтобы не спамить
     if not isLoop then
-        Log("[ACTION]: Запуск проверки ников на сервере...", "action")
+        Log("[ACTION]: Проверка на наличие альтов...", "action")
     end
     
     local found = false
@@ -1249,17 +1266,17 @@ local function CheckForTeammates(isLoop)
         if player ~= LocalPlayer then
             for _, myAltName in pairs(getgenv().MyAlts) do
                 if player.Name == myAltName then
-                    Log("⚠️ Обнаружен свой аккаунт: " .. player.Name .. ". Меняю сервер...", "warn")
+                    Log("⚠️ ОБНАРУЖЕН АЛЬТ: " .. player.Name, "warn")
+                    
+                    -- [[ НОВОЕ: Добавляем сервер в ЧС перед выходом ]] --
+                    ManageBlacklist("add_current")
+                    
                     found = true
-                    TeleportService:Teleport(game.PlaceId, LocalPlayer)
+                    Teleport() -- Использует обновленный хоп
                     return true
                 end
             end
         end
-    end
-    
-    if not found and not isLoop then
-        Log("[SUCCESS]: Своих аккаунтов нет. Работаю.", "success")
     end
     
     return false
@@ -1425,7 +1442,54 @@ if not serverHopFile or not serverHopData.timestamp or (tick() - serverHopData.t
     serverHopData = { ["cursor"] = "", ["visited"] = {}, ["timestamp"] = tick() }
 end
 
+local function ManageBlacklist(action, value)
+    local hopFile = "QuarkBeta_ServerHop.txt"
+    local data = {cursor = "", visited = {}, blacklist = {}, timestamp = tick()}
+    
+    pcall(function()
+        if isfile(hopFile) then
+            local fileData = HttpService:JSONDecode(readfile(hopFile))
+            if fileData then data = fileData end
+        end
+    end)
+    
+    if not data.blacklist then data.blacklist = {} end
+    
+    if action == "add_current" then
+        -- Добавляем текущий сервер в ЧС на 300 сек (5 мин)
+        data.blacklist[game.JobId] = tick() + 300
+        if Log then Log("⛔ Сервер добавлен в Blacklist (5 мин).", "error") end
+        writefile(hopFile, HttpService:JSONEncode(data))
+        
+    elseif action == "check" then
+        -- Возвращает true, если сервер в ЧС
+        local expiry = data.blacklist[value]
+        if expiry then
+            if tick() < expiry then
+                return true
+            else
+                data.blacklist[value] = nil -- Удаляем просроченный
+            end
+        end
+        return false
+        
+    elseif action == "clean" then
+        -- Чистка старых записей
+        local changed = false
+        for id, time in pairs(data.blacklist) do
+            if tick() > time then
+                data.blacklist[id] = nil
+                changed = true
+            end
+        end
+        if changed then writefile(hopFile, HttpService:JSONEncode(data)) end
+    end
+end
+
 local function TPReturner()
+    -- Чистим старый блеклист перед поиском
+    ManageBlacklist("clean")
+    
     local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=' .. getgenv().sortOrder .. '&limit=100'
     if serverHopData.cursor and serverHopData.cursor ~= "" then
         url = url .. "&cursor=" .. serverHopData.cursor
@@ -1445,7 +1509,8 @@ local function TPReturner()
     
     for _,v in pairs(Site.data) do
        local ID = tostring(v.id)
-       if tonumber(v.maxPlayers) > tonumber(v.playing) and not serverHopData.visited[ID] then
+       -- [[ ИЗМЕНЕНИЕ: Добавлена проверка ManageBlacklist ]] --
+       if tonumber(v.maxPlayers) > tonumber(v.playing) and not serverHopData.visited[ID] and not ManageBlacklist("check", ID) then
             serverHopData.visited[ID] = true 
             serverHopData.cursor = nextPageCursor 
             writefile("QuarkBeta_ServerHop.txt", HttpService:JSONEncode(serverHopData))
@@ -1459,7 +1524,7 @@ local function TPReturner()
     if nextPageCursor and nextPageCursor ~= "null" and nextPageCursor ~= nil then
         serverHopData.cursor = nextPageCursor
     else
-        Log("Сервера закончились, сброс.", "info")
+        Log("Сервера закончились, сброс списка.", "info")
         serverHopData.cursor = ""
         serverHopData.visited = {}
     end
