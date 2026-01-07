@@ -1,22 +1,27 @@
 getgenv().TelegramBotToken = "" 
 getgenv().TelegramChatID = ""
 
--- [[ ИНТЕГРАЦИЯ: МЕНЕДЖЕР МУЛЬТИ-АККАУНТОВ ]] --
--- Эта часть автоматически читает список твоих аккаунтов из закрепа в Telegram
--- и не дает им заходить на один и тот же сервер.
-
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
-local TeleportService = game:GetService("TeleportService")
-local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
+local TeleportService = game:GetService("TeleportService")
+local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MarketplaceService = game:GetService("MarketplaceService")
+local UserInputService = game:GetService("UserInputService")
 local VirtualUser = game:GetService("VirtualUser")
 
-local LocalPlayer = Players.LocalPlayer
+-- [ ВАЖНО ]: Функция Log должна быть определена до использования в проверках
+local function Log(text, type)
+    -- Эта функция будет переопределена ниже основным кодом UI, 
+    -- но мы создаем заглушку, чтобы скрипт не упал при старте
+    print("[" .. tostring(type):upper() .. "]: " .. text)
+end
 
--- Функция обновления списка ников из закрепа
+-- [[ МЕНЕДЖЕР МУЛЬТИ-АККАУНТОВ ]] --
+
 local function UpdateAltsFromTelegram()
     if getgenv().TelegramBotToken == "" or getgenv().TelegramChatID == "" then return {} end
     
@@ -35,52 +40,159 @@ local function UpdateAltsFromTelegram()
             end
         end
     end
+    
+    -- Вывод в твой UI Log
+    Log("Загружено аккаунтов из TG: " .. #newAlts, "info")
     return newAlts
 end
 
--- Инициализация списка
 getgenv().MyAlts = UpdateAltsFromTelegram()
 
--- Фоновое обновление списка каждые 60 сек
-task.spawn(function()
-    while true do
-        task.wait(60)
-        pcall(function()
-            local updated = UpdateAltsFromTelegram()
-            if #updated > 0 then getgenv().MyAlts = updated end
-        end)
-    end
-end)
-
--- Функция проверки "Свой-Чужой"
 local function CheckForTeammates()
-    if not getgenv().MyAlts or #getgenv().MyAlts == 0 then return end
+    Log("Запуск проверки ников на сервере...", "action")
+    
+    if not getgenv().MyAlts or #getgenv().MyAlts == 0 then 
+        return false 
+    end
     
     for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
+        if player ~= Players.LocalPlayer then
             for _, myAltName in pairs(getgenv().MyAlts) do
                 if player.Name == myAltName then
-                    warn("⚠️ QUARK MULTI: Обнаружен свой аккаунт (" .. player.Name .. "). Меняю сервер...")
-                    TeleportService:Teleport(game.PlaceId, LocalPlayer)
+                    Log("Обнаружен свой: " .. player.Name .. ". Перезахожу...", "warn")
+                    task.wait(1)
+                    TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
                     return true
                 end
             end
         end
     end
+    Log("Своих аккаунтов нет. Работаю.", "success")
     return false
 end
 
--- Проверяем при запуске
+-- Моментальная проверка
 if CheckForTeammates() then return end
 
--- Проверяем при входе новых игроков
-Players.PlayerAdded:Connect(function()
-    task.wait(2)
-    CheckForTeammates()
+-- [[ ГЛАВНЫЕ НАСТРОЙКИ И UI ]] --
+
+local ConfigFileName = "QuarkBeta_Settings.json"
+local FarmModes = {
+    "Standard (Money & Stop)",
+    "Money -> Lucky Farm",
+    "P3/Lvl50 -> Lucky Farm",
+    "Just Prestige/Level"
+}
+
+-- Глобальные переменные UI
+local BlackScreenGui = nil
+local StatsUpdateLoop = nil
+local UpdateSafeModeState 
+
+-- Функция переключения черного экрана
+local function ToggleBlackScreen(state)
+    if state then
+        if not BlackScreenGui then
+            BlackScreenGui = Instance.new("ScreenGui")
+            BlackScreenGui.Name = "QuarkBlackScreen"
+            BlackScreenGui.Parent = CoreGui
+            BlackScreenGui.IgnoreGuiInset = true
+            
+            local MainBG = Instance.new("Frame")
+            MainBG.Size = UDim2.new(1, 0, 1, 0)
+            MainBG.BackgroundColor3 = Color3.fromRGB(5, 5, 10)
+            MainBG.Parent = BlackScreenGui
+            
+            local Content = Instance.new("TextLabel")
+            Content.Size = UDim2.new(1, 0, 1, 0)
+            Content.Text = "QUARK BETA\nRENDERING DISABLED"
+            Content.TextColor3 = Color3.fromRGB(100, 100, 255)
+            Content.Font = Enum.Font.Code
+            Content.TextSize = 30
+            Content.BackgroundTransparency = 1
+            Content.Parent = MainBG
+        end
+        BlackScreenGui.Enabled = true
+    else
+        if BlackScreenGui then BlackScreenGui.Enabled = false end
+    end
+end
+
+-- Логика сохранения/загрузки конфига
+local function SaveConfig()
+    local data = {
+        TelegramEnabled = getgenv().QuarkSettings.TelegramEnabled,
+        TelegramBotToken = getgenv().TelegramBotToken,
+        TelegramChatID = getgenv().TelegramChatID,
+        SafeMode = getgenv().QuarkSettings.SafeMode,
+        BlackScreen = getgenv().QuarkSettings.BlackScreen,
+        TargetMoney = getgenv().QuarkSettings.TargetMoney,
+        FarmModeIndex = getgenv().QuarkSettings.FarmModeIndex
+    }
+    writefile(ConfigFileName, HttpService:JSONEncode(data))
+end
+
+local function LoadConfig()
+    local Defaults = {
+        TelegramEnabled = true, SafeMode = false, BlackScreen = false,
+        TargetMoney = 300000, FarmModeIndex = 1, ThemeColor = Color3.fromRGB(15, 15, 20)
+    }
+    if isfile(ConfigFileName) then
+        local success, result = pcall(function() return HttpService:JSONDecode(readfile(ConfigFileName)) end)
+        if success then 
+            for k,v in pairs(result) do Defaults[k] = v end 
+            getgenv().TelegramBotToken = result.TelegramBotToken or ""
+            getgenv().TelegramChatID = result.TelegramChatID or ""
+        end
+    end
+    getgenv().QuarkSettings = Defaults
+end
+
+LoadConfig()
+
+-- [[ РАБОТА С ТЕЛЕГРАМ КОМАНДАМИ ]] --
+local lastUpdateId = 0
+task.spawn(function()
+    while true do
+        task.wait(4)
+        if getgenv().QuarkSettings.TelegramEnabled and getgenv().TelegramBotToken ~= "" then
+            pcall(function()
+                local url = "https://api.telegram.org/bot"..getgenv().TelegramBotToken.."/getUpdates?offset="..(lastUpdateId + 1)
+                local res = game:HttpGet(url)
+                local data = HttpService:JSONDecode(res)
+                if data.ok then
+                    for _, update in ipairs(data.result) do
+                        lastUpdateId = update.update_id
+                        local text = update.message and update.message.text
+                        if text then
+                            local args = text:split(" ")
+                            if args[1] == "/stats" then
+                                local target = args[2]
+                                if not target or target == Players.LocalPlayer.Name or target == "all" then
+                                    local msg = "👤 " .. Players.LocalPlayer.Name .. "\n💰 Money: " .. Players.LocalPlayer.PlayerStats.Money.Value
+                                    game:HttpGet("https://api.telegram.org/bot"..getgenv().TelegramBotToken.."/sendMessage?chat_id="..getgenv().TelegramChatID.."&text="..msg)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
 end)
 
--- [[ КОНЕЦ ИНТЕГРАЦИИ ]] --
+-- Проверка новых игроков во время работы
+Players.PlayerAdded:Connect(function(player)
+    task.wait(2)
+    for _, altName in pairs(getgenv().MyAlts) do
+        if player.Name == altName then
+            Log("Зашел свой ("..player.Name.."). Ухожу.", "warn")
+            TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
+        end
+    end
+end)
 
+Log("Скрипт полностью инициализирован!", "success")
 
 -- ДАЛЕЕ ИДЕТ ТВОЙ ОРИГИНАЛЬНЫЙ СКРИПТ С УЛУЧШЕННЫМИ КОМАНДАМИ
 
