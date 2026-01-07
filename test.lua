@@ -1145,42 +1145,90 @@ end
 
 -- [[ ИНТЕГРАЦИЯ: МЕНЕДЖЕР МУЛЬТИ-АККАУНТОВ (ПЕРЕМЕЩЕНО СЮДА ДЛЯ ЛОГИРОВАНИЯ) ]] --
 
--- Функция обновления списка ников из закрепа
+-- Функция обновления списка ников из закрепа (С Улучшенным Логированием)
 local function UpdateAltsFromTelegram()
+    -- Проверка наличия токена и ID чата
     if getgenv().TelegramBotToken == "" or getgenv().TelegramChatID == "" then return {} end
     
-    -- Добавляем случайное число, чтобы Roblox не кэшировал запрос (Fix)
-    local url = "https://api.telegram.org/bot" .. getgenv().TelegramBotToken .. "/getChat?chat_id=" .. getgenv().TelegramChatID .. "&cb=" .. tostring(math.random(1,100000))
+    -- [LOG] Сообщаем о начале сканирования
+    Log("[TG DEBUG]: Запрос к API (getChat)...", "tg")
     
-    local success, response = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet(url, true))
+    -- Формируем URL с защитой от кэширования (random)
+    local url = "[https://api.telegram.org/bot](https://api.telegram.org/bot)" .. getgenv().TelegramBotToken .. "/getChat?chat_id=" .. getgenv().TelegramChatID .. "&cb=" .. tostring(math.random(1,100000))
+    
+    -- Делаем запрос (используем pcall, чтобы скрипт не крашнулся при ошибке сети)
+    local success, responseBody = pcall(function()
+        return game:HttpGet(url, true)
     end)
     
+    -- Если запрос не прошел (нет интернета или ошибка HTTP)
+    if not success then
+        Log("[TG ERROR]: Ошибка сети/HTTP запроса.", "error")
+        warn("Quark HTTP Error:", responseBody) -- Пишем ошибку в F9
+        return {}
+    end
+    
+    -- Пробуем расшифровать JSON ответ
+    local decodeSuccess, response = pcall(function()
+        return HttpService:JSONDecode(responseBody)
+    end)
+    
+    if not decodeSuccess then
+        Log("[TG ERROR]: Ошибка обработки JSON.", "error")
+        warn("Quark JSON Decode Error. Body:", responseBody)
+        return {}
+    end
+    
     local newAlts = {}
-    if success and response and response.result then
-        if response.result.pinned_message then
-            local text = response.result.pinned_message.text
-            if text and string.find(text, "/alts") then
-                local cleanText = string.gsub(text, "/alts", "")
-                for word in string.gmatch(cleanText, "[^,%s]+") do
-                    table.insert(newAlts, word)
-                end
-                
-                if #newAlts > 0 then
-                    Log("[INFO]: Загружено аккаунтов из TG: " .. #newAlts, "tg")
+    
+    -- Проверяем, успешен ли ответ от самого Телеграма
+    if response and response.ok and response.result then
+        local chatData = response.result
+        
+        -- [LOG] Проверка pinned_message
+        if chatData.pinned_message then
+            local msg = chatData.pinned_message
+            
+            if msg.text then
+                if string.find(msg.text, "/alts") then
+                    -- Парсинг ников
+                    local cleanText = string.gsub(msg.text, "/alts", "")
+                    for word in string.gmatch(cleanText, "[^,%s]+") do
+                        table.insert(newAlts, word)
+                    end
+                    
+                    if #newAlts > 0 then
+                        Log("[TG SUCCESS]: Загружено " .. #newAlts .. " аккаунтов.", "success")
+                    else
+                        Log("[TG WARN]: '/alts' найден, но ников нет.", "warn")
+                    end
                 else
-                    Log("[WARN]: Нашел /alts, но список пуст.", "warn")
+                    Log("[TG WARN]: Закреп есть, но нет команды '/alts'.", "warn")
+                    Log("Текст закрепа: " .. string.sub(msg.text, 1, 20) .. "...", "info")
                 end
             else
-                -- Если закреп есть, но текста /alts нет
-                local shortText = text and string.sub(text, 1, 15) .. "..." or "nil"
-                Log("[DEBUG]: Закреп есть, но нет '/alts'. Вижу: " .. shortText, "warn")
+                Log("[TG WARN]: В закрепе нет текста (возможно картинка/стикер).", "warn")
             end
         else
-            Log("[WARN]: В чате нет закрепленного сообщения (pinned_message = nil).", "warn")
+            -- !!! САМОЕ ВАЖНОЕ: Если pinned_message нет !!!
+            Log("[TG ERROR]: pinned_message = nil (Телеграм не видит закрепа)", "error")
+            
+            -- Подсказки в лог
+            if chatData.type == "private" then
+                 Log("Совет: В ЛС бота закрепы могут не работать.", "info")
+            else
+                 Log("Совет: Сделайте бота АДМИНИСТРАТОРОМ группы.", "action")
+            end
+            
+            -- Выводим полный ответ в консоль (F9), чтобы вы могли скинуть скриншот если не работает
+            print("--------------- TG DEBUG RESPONSE ---------------")
+            print(responseBody)
+            print("-------------------------------------------------")
         end
-    elseif not success then
-         Log("[ERROR]: Ошибка HTTP запроса к TG.", "error")
+    else
+        -- Если response.ok == false
+        local errDesc = response and response.description or "Неизвестная ошибка"
+        Log("[TG API ERROR]: " .. errDesc, "error")
     end
     
     return newAlts
