@@ -10,7 +10,7 @@
         "note": "test"
     },
     "linercit": {
-        "banned": false,
+        "banned": true,
         "expires": 0,
         "note": "linercit"
     }
