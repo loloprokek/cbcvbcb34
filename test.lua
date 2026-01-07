@@ -3,16 +3,15 @@ getgenv().TelegramChatID = ""
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
-local TeleportService = game:GetService("TeleportService")
-local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
+local TeleportService = game:GetService("TeleportService")
+local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MarketplaceService = game:GetService("MarketplaceService")
+local UserInputService = game:GetService("UserInputService")
 local VirtualUser = game:GetService("VirtualUser")
-
-local LocalPlayer = Players.LocalPlayer
-
--- (Менеджер аккаунтов перенесен ниже, чтобы работало логирование в UI)
 
 Players.LocalPlayer.Idled:Connect(function()
     VirtualUser:CaptureController()
@@ -26,7 +25,8 @@ task.spawn(function()
             VirtualUser:CaptureController()
             VirtualUser:ClickButton2(Vector2.new())
             local currentCam = workspace.CurrentCamera
-            if currentCam then end
+            if currentCam then
+            end
         end)
     end
 end)
@@ -42,7 +42,7 @@ local FarmModes = {
 
 local BlackScreenGui = nil
 local StatsUpdateLoop = nil
-local UpdateSafeModeState 
+local UpdateSafeModeState -- Forward declaration
 
 local function ToggleBlackScreen(state)
     if state then
@@ -149,6 +149,7 @@ local function ToggleBlackScreen(state)
             end)
         end
         BlackScreenGui.Enabled = true
+        -- RunService:Set3dRenderingEnabled(false) -- УБРАНО ОТСЮДА, ТЕПЕРЬ УПРАВЛЯЕТСЯ В UpdateSafeModeState
     else
         if BlackScreenGui then
             BlackScreenGui.Enabled = false
@@ -157,6 +158,7 @@ local function ToggleBlackScreen(state)
             StatsUpdateLoop:Disconnect()
             StatsUpdateLoop = nil
         end
+        -- RunService:Set3dRenderingEnabled(true) -- УБРАНО ОТСЮДА
     end
 end
 
@@ -166,19 +168,22 @@ UpdateSafeModeState = function()
 
     pcall(function()
         if safeModeEnabled then
+            -- Базовая оптимизация из файла тес.txt
             settings().Rendering.QualityLevel = 1
             if setfpscap then setfpscap(30) end
             
             if blackScreenEnabled then
                 RunService:Set3dRenderingEnabled(false)
-                ToggleBlackScreen(true)
+                ToggleBlackScreen(true) -- Показываем GUI
             else
                 RunService:Set3dRenderingEnabled(true)
-                ToggleBlackScreen(false)
+                ToggleBlackScreen(false) -- Скрываем GUI
             end
         else
+            -- Выключение Safe Mode
             RunService:Set3dRenderingEnabled(true)
-            ToggleBlackScreen(false)
+            ToggleBlackScreen(false) -- Скрываем GUI
+            
             settings().Rendering.QualityLevel = 10
             if setfpscap then setfpscap(60) end
         end
@@ -245,6 +250,7 @@ local function LoadConfig()
             if result.TelegramChatID and result.TelegramChatID ~= "" then
                 getgenv().TelegramChatID = result.TelegramChatID
             end
+            
             Defaults.UILogging = result.UILogging
             Defaults.NotifyInject = result.NotifyInject
             Defaults.NotifyFinish = result.NotifyFinish
@@ -256,11 +262,13 @@ local function LoadConfig()
             Defaults.BlackScreen = result.BlackScreen or false
             Defaults.TargetMoney = result.TargetMoney or 300000
             Defaults.FarmModeIndex = result.FarmModeIndex or 1
+            
             if result.AutoBuyLucky ~= nil then
                 Defaults.AutoBuyLucky = result.AutoBuyLucky
             else
                 Defaults.AutoBuyLucky = true
             end
+            
             if result.ThemeColor then
                 Defaults.ThemeColor = Color3.new(result.ThemeColor.R, result.ThemeColor.G, result.ThemeColor.B)
             end
@@ -269,6 +277,7 @@ local function LoadConfig()
     
     getgenv().QuarkSettings = Defaults
     getgenv().TargetMoney = getgenv().QuarkSettings.TargetMoney 
+    
     task.spawn(UpdateSafeModeState)
 end
 
@@ -281,7 +290,7 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
     SetupScreen.Name = "QuarkSetup"
     SetupScreen.Parent = CoreGui
     SetupScreen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-   
+    
     local Frame = Instance.new("Frame")
     Frame.Size = UDim2.new(0, 420, 0, 280)
     Frame.Position = UDim2.new(0.5, -210, 0.5, -140)
@@ -296,7 +305,7 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
     Stroke.Color = Color3.fromRGB(100, 100, 255)
     Stroke.Thickness = 1.5
     Stroke.Transparency = 0.5
-  
+    
     local TitleBar = Instance.new("Frame", Frame)
     TitleBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     TitleBar.BackgroundTransparency = 0.95
@@ -351,7 +360,7 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
     
     local TokenBox = CreateNiceInput("Введите Bot Token...", 60, "Telegram Bot Token")
     local ChatIDBox = CreateNiceInput("Введите Chat ID...", 125, "Telegram Chat ID")
-   
+    
     local SaveBtn = Instance.new("TextButton", Frame)
     SaveBtn.Size = UDim2.new(0.9, 0, 0, 40)
     SaveBtn.Position = UDim2.new(0.05, 0, 0, 210)
@@ -479,7 +488,6 @@ local function SendControlPanel()
     SendTelegramMessage("🎛 <b>Панель управления Quark:</b>\nВыберите действие:", "manual_response", keyboard)
 end
 
--- ОБНОВЛЕННАЯ ЛОГИКА КОМАНД (С поддержкой аргументов)
 local function HandleCommands()
     if isListening then return end
     isListening = true
@@ -488,6 +496,7 @@ local function HandleCommands()
     task.spawn(function()
         while true do
             task.wait(2) 
+            
             if getgenv().QuarkSettings.TelegramEnabled and getgenv().TelegramBotToken ~= "" then
                 local url = "https://api.telegram.org/bot" .. getgenv().TelegramBotToken .. "/getUpdates?offset=" .. (lastUpdateId + 1) .. "&timeout=5"
                 local requestFunc = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
@@ -524,49 +533,31 @@ local function HandleCommands()
                                         requestFunc({Url = ansUrl, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode({callback_query_id = callbackId})})
                                     end
 
-                                    -- [[ НОВАЯ ЛОГИКА: ПАРСИНГ АРГУМЕНТОВ ]] --
-                                    -- Разделяем текст на слова: "/stats Account1" -> {"/stats", "Account1"}
-                                    local args = {}
-                                    for word in string.gmatch(text, "%S+") do
-                                        table.insert(args, word)
-                                    end
+                                    if text == "/ping" then
+                                        SendTelegramMessage("🏓 Pong! Связь стабильна.\nСервер: " .. game.PlaceId, "manual_response")
                                     
-                                    local cmd = args[1] -- Сама команда (например /stats)
-                                    local target = args[2] -- Цель (например Ник или all)
-                                    
-                                    -- Проверяем, к нам ли обращаются
-                                    local isForMe = true
-                                    if target then
-                                        if target:lower() ~= "all" and target ~= Players.LocalPlayer.Name then
-                                            isForMe = false
-                                        end
-                                    end
-
-                                    if isForMe then
-                                        if cmd == "/ping" then
-                                            SendTelegramMessage("🏓 Pong! (" .. Players.LocalPlayer.Name .. ")\nСервер: " .. game.PlaceId, "manual_response")
+                                    elseif text == "/help" or text == "/start" then
+                                        SendControlPanel()
                                         
-                                        elseif cmd == "/help" or cmd == "/start" then
-                                            SendControlPanel()
-                                            
-                                        elseif cmd == "/stats" then
-                                            local stats = Players.LocalPlayer.PlayerStats
-                                            local msg = "📊 <b>Статистика:</b> " .. Players.LocalPlayer.Name .. "\n" ..
-                                                        "💰 <b>$</b> " .. stats.Money.Value .. " / " .. getgenv().TargetMoney .. "\n" ..
-                                                        "⭐ <b>Lvl:</b> " .. stats.Level.Value .. " | " .. "🏆 <b>Prest:</b> " .. stats.Prestige.Value .. "\n" ..
-                                                        "🕹️ <b>Mode:</b> " .. FarmModes[getgenv().QuarkSettings.FarmModeIndex]
-                                            SendTelegramMessage(msg, "manual_response")
-                                            
-                                        elseif cmd == "/rejoin" then
-                                            SendTelegramMessage("🔄 Rejoin: " .. Players.LocalPlayer.Name, "action")
-                                            TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
-                                            return 
-                                            
-                                        elseif cmd == "/stop" then
-                                            SendTelegramMessage("🛑 STOP: " .. Players.LocalPlayer.Name, "error")
-                                            Players.LocalPlayer:Kick("Stopped via Telegram (/stop)")
-                                            return 
-                                        end
+                                    elseif text == "/stats" then
+                                        local stats = Players.LocalPlayer.PlayerStats
+                                        local msg = "📊 <b>Статистика Quark:</b>\n" ..
+                                                    "👤 <b>Ник:</b> " .. Players.LocalPlayer.Name .. "\n" ..
+                                                    "💰 <b>Деньги:</b> " .. stats.Money.Value .. " / " .. getgenv().TargetMoney .. "\n" ..
+                                                    "⭐ <b>Уровень:</b> " .. stats.Level.Value .. "\n" ..
+                                                    "🏆 <b>Престиж:</b> " .. stats.Prestige.Value .. "\n" ..
+                                                    "🕹️ <b>Режим:</b> " .. FarmModes[getgenv().QuarkSettings.FarmModeIndex]
+                                        SendTelegramMessage(msg, "manual_response")
+                                        
+                                    elseif text == "/rejoin" then
+                                        SendTelegramMessage("🔄 Команда Rejoin получена. Перезапуск...", "action")
+                                        TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
+                                        return 
+                                        
+                                    elseif text == "/stop" then
+                                        SendTelegramMessage("🛑 Команда Stop получена. Кик...", "error")
+                                        Players.LocalPlayer:Kick("Stopped via Telegram (/stop)")
+                                        return 
                                     end
                                 end
                             end
@@ -864,7 +855,6 @@ function DebugUI:Create()
             toggled = not toggled
             callback(toggled)
             SaveConfig()
-        
             local targetColor = toggled and Color3.fromRGB(100, 255, 120) or Color3.fromRGB(60, 60, 60)
             local targetPos = toggled and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
             TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
@@ -1143,102 +1133,11 @@ Log = function(text, msgType)
     end)
 end
 
--- [[ ИНТЕГРАЦИЯ: МЕНЕДЖЕР МУЛЬТИ-АККАУНТОВ (ПЕРЕМЕЩЕНО СЮДА ДЛЯ ЛОГИРОВАНИЯ) ]] --
-
-local function UpdateAltsFromTelegram()
-    if getgenv().TelegramBotToken == "" or getgenv().TelegramChatID == "" then return {} end
-    
-    local url = "https://api.telegram.org/bot" .. getgenv().TelegramBotToken .. "/getChat?chat_id=" .. getgenv().TelegramChatID
-    local success, response = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet(url))
-    end)
-    
-    local newAlts = {}
-    if success and response and response.result and response.result.pinned_message then
-        local text = response.result.pinned_message.text
-        if string.find(text, "/alts") then
-            local cleanText = string.gsub(text, "/alts", "")
-            for word in string.gmatch(cleanText, "[^,%s]+") do
-                table.insert(newAlts, word)
-            end
-        end
-    end
-    
-    -- ЛОГИРОВАНИЕ ЗАГРУЗКИ АККАУНТОВ
-    if success and #newAlts > 0 then
-        Log("[INFO]: Загружено аккаунтов из TG: " .. #newAlts, "tg")
-    elseif not success then
-         Log("[INFO]: Ошибка подключения к TG для списка альтов.", "warn")
-    else
-         Log("[INFO]: Аккаунты в закрепе TG не найдены.", "warn")
-    end
-    
-    return newAlts
-end
-
--- Функция проверки "Свой-Чужой"
-local function CheckForTeammates(isLoop)
-    if not getgenv().MyAlts or #getgenv().MyAlts == 0 then return end
-    
-    -- Пишем лог только при первой проверке, чтобы не спамить
-    if not isLoop then
-        Log("[ACTION]: Запуск проверки ников на сервере...", "action")
-    end
-    
-    local found = false
-    
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            for _, myAltName in pairs(getgenv().MyAlts) do
-                if player.Name == myAltName then
-                    Log("⚠️ Обнаружен свой аккаунт: " .. player.Name .. ". Меняю сервер...", "warn")
-                    found = true
-                    TeleportService:Teleport(game.PlaceId, LocalPlayer)
-                    return true
-                end
-            end
-        end
-    end
-    
-    if not found and not isLoop then
-        Log("[SUCCESS]: Своих аккаунтов нет. Работаю.", "success")
-    end
-    
-    return false
-end
-
--- Функция запуска менеджера (вызывается после инициализации UI)
-local function StartAccountManager()
-    getgenv().MyAlts = UpdateAltsFromTelegram()
-    
-    task.spawn(function()
-        while true do
-            task.wait(60)
-            pcall(function()
-                local updated = UpdateAltsFromTelegram()
-                if #updated > 0 then getgenv().MyAlts = updated end
-            end)
-        end
-    end)
-    
-    if CheckForTeammates(false) then return end
-    
-    Players.PlayerAdded:Connect(function()
-        task.wait(2)
-        CheckForTeammates(true)
-    end)
-end
-
--- [[ КОНЕЦ ИНТЕГРАЦИИ ]] --
-
 getgenv().TargetMoney = getgenv().QuarkSettings.TargetMoney 
 getgenv().ItemCollectionDelay = 3 
 getgenv().ServerFarmTime = 180 
 
 Log("Инициализация Quark Beta...", "action")
-
--- ЗАПУСК МЕНЕДЖЕРА АККАУНТОВ
-task.spawn(StartAccountManager)
 
 local LocalPlayer
 local Character
@@ -1430,8 +1329,10 @@ local function ForceRejoin(reason)
         while true do
             TPReturner()
             task.wait(2)
+            
             TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
             task.wait(5)
+            
             pcall(function() game:GetService("GuiService"):ClearError() end)
         end
     end)
@@ -1615,7 +1516,7 @@ local function StartLuckyFarmLoop()
                 ToggleNoclip(true)
                 TeleportTo(CFrame.new(item.Pos + Vector3.new(0, 5, 0)))
                 task.wait(TeleportDelay)
-               
+                
                 if item.Prompt.Parent then
                     fireproximityprompt(item.Prompt)
                 else
@@ -2148,7 +2049,7 @@ local function autoStory()
                  task.wait(0.05)
             until game.Players.LocalPlayer.PlayerGui:FindFirstChild("DialogueGui")
             if game.Players.LocalPlayer.PlayerGui:FindFirstChild("DialogueGui") then
-              repeat
+             repeat
             game:GetService("VirtualInputManager"):SendMouseButtonEvent(0,8,0, true, nil, 1)
             task.wait(0.05)
             until game.Players.LocalPlayer.PlayerGui:FindFirstChild("DialogueGui").Frame.Options:FindFirstChild("Option1")
@@ -2174,7 +2075,7 @@ local function autoStory()
             Teleport()
         end
     end
-      
+       
     while #questPanel:GetChildren() < 2 and repeatCount < 1000 do
         if not questPanel:FindFirstChild("Take down 3 vampires") then
             Log("Квест завершен (".. math.floor(tick() - lastTick) .. "с)", "success")
@@ -2329,17 +2230,25 @@ if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
             Character.FocusCam:Destroy()
         end
     else
+        -- [НОВАЯ ЛОГИКА] Обработка неизвестных квестов / застревания
         Log("autoStory: Нет известных квестов. Lvl: " .. LocalPlayer.PlayerStats.Level.Value, "warn")
         
+        -- Если у нас неизвестные квесты (сайды), а мы Lvl >= 25,
+        -- принудительно берем квест на вампиров, чтобы сбросить старые и встать на рельсы фарма.
         if LocalPlayer.PlayerStats.Level.Value >= 25 and LocalPlayer.PlayerStats.Level.Value ~= 50 then
             Log("FIX: Lvl >= 25. Принудительно берем квест у William Zeppeli...", "action")
             endDialogue("William Zeppeli", "Dialogue4", "Option1")
+            
+            -- Также прокликаем основной сюжет, на всякий случай
             Log("FIX: Прокликиваем storyDialogue() для сброса...", "info")
             storyDialogue()
+            
             Log("FIX: Ожидание 1 сек и повтор autoStory()...", "info")
             task.wait(1)
             autoStory()
         else
+            -- Если мы < Lvl 25, мы, вероятно, застряли.
+            -- Попробуем прокликать сюжет и перезапустить.
             Log("FIX: Lvl < 25. Прокликиваем storyDialogue() и повторяем...", "warn")
             storyDialogue()
             task.wait(1)
