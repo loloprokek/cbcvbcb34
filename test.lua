@@ -1,7 +1,3 @@
--- [[ QUARK BETA FIX ]] --
-print("Quark: Script Starting...")
-
--- 1. СЕРВИСЫ И ПЕРЕМЕННЫЕ
 getgenv().TelegramBotToken = getgenv().TelegramBotToken or "" 
 getgenv().TelegramChatID = getgenv().TelegramChatID or ""
 
@@ -16,20 +12,17 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 local UserInputService = game:GetService("UserInputService")
 
--- Безопасная загрузка VirtualUser (Anti-AFK)
 local VirtualUser = nil
 pcall(function() VirtualUser = game:GetService("VirtualUser") end)
 
 local LocalPlayer = Players.LocalPlayer
 
--- Anti-AFK
 if LocalPlayer then
     LocalPlayer.Idled:Connect(function()
         if VirtualUser then
             VirtualUser:CaptureController()
             VirtualUser:ClickButton2(Vector2.new())
         else
-            -- Фоллбэк если VirtualUser не работает
             pcall(function()
                 local vim = game:GetService("VirtualInputManager")
                 vim:SendMouseButtonEvent(0, 0, 0, true, game, 1)
@@ -40,7 +33,6 @@ if LocalPlayer then
     end)
 end
 
--- 2. СИСТЕМА HOP DATA (Перенесена наверх, чтобы работала проверка альтов)
 local PlaceID = game.PlaceId
 local serverHopData = {}
 local serverHopFile = pcall(function()
@@ -57,7 +49,6 @@ local function SaveHopData()
     end
 end
 
--- 3. ОСНОВНЫЕ ФУНКЦИИ
 local ConfigFileName = "QuarkBeta_Settings.json"
 local FarmModes = {
     "Standard (Money & Stop)",
@@ -68,7 +59,10 @@ local FarmModes = {
 
 local BlackScreenGui = nil
 local StatsUpdateLoop = nil
-local UpdateSafeModeState = nil -- Forward declaration
+local UpdateSafeModeState = nil
+local LogContainer = nil
+local UIManager = {} 
+local MainFrameInstance = nil
 
 local function ToggleBlackScreen(state)
     if state then
@@ -82,7 +76,7 @@ local function ToggleBlackScreen(state)
             local MainBG = Instance.new("Frame")
             MainBG.Name = "Background"
             MainBG.Size = UDim2.new(1, 0, 1, 0)
-            MainBG.BackgroundColor3 = Color3.fromRGB(5, 5, 10)
+            MainBG.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
             MainBG.BorderSizePixel = 0
             MainBG.Parent = BlackScreenGui
             
@@ -93,71 +87,76 @@ local function ToggleBlackScreen(state)
             ContentHolder.Parent = MainBG
 
             local Logo = Instance.new("TextLabel")
-            Logo.Text = "QUARK BETA"
-            Logo.Font = Enum.Font.GothamBold
-            Logo.TextSize = 40
-            Logo.TextColor3 = Color3.fromRGB(120, 120, 255)
-            Logo.Size = UDim2.new(1, 0, 0, 50)
-            Logo.Position = UDim2.new(0, 0, 0, 0)
+            Logo.Text = "QUARK"
+            Logo.Font = Enum.Font.FredokaOne
+            Logo.TextSize = 50
+            Logo.TextColor3 = Color3.fromRGB(130, 130, 255)
+            Logo.Size = UDim2.new(1, 0, 0, 60)
+            Logo.Position = UDim2.new(0, 0, 0, -20)
             Logo.BackgroundTransparency = 1
             Logo.Parent = ContentHolder
             
             local Status = Instance.new("TextLabel")
-            Status.Text = "3D RENDERING DISABLED"
-            Status.Font = Enum.Font.Code
-            Status.TextSize = 16
+            Status.Text = "RENDERING DISABLED"
+            Status.Font = Enum.Font.GothamMedium
+            Status.TextSize = 14
             Status.TextColor3 = Color3.fromRGB(100, 255, 100)
-            Status.Size = UDim2.new(1, 0, 0, 30)
-            Status.Position = UDim2.new(0, 0, 0, 45)
+            Status.Size = UDim2.new(1, 0, 0, 20)
+            Status.Position = UDim2.new(0, 0, 0, 40)
             Status.BackgroundTransparency = 1
             Status.Parent = ContentHolder
 
             local StatsFrame = Instance.new("Frame")
-            StatsFrame.Size = UDim2.new(0.8, 0, 0, 120)
-            StatsFrame.Position = UDim2.new(0.1, 0, 0, 90)
-            StatsFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-            StatsFrame.BackgroundTransparency = 0.5
-            Instance.new("UICorner", StatsFrame).CornerRadius = UDim.new(0, 8)
-            local SStroke = Instance.new("UIStroke", StatsFrame)
-            SStroke.Color = Color3.fromRGB(60, 60, 100)
-            SStroke.Thickness = 1
+            StatsFrame.Size = UDim2.new(0.9, 0, 0, 140)
+            StatsFrame.Position = UDim2.new(0.05, 0, 0, 80)
+            StatsFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+            StatsFrame.BorderSizePixel = 0
+            Instance.new("UICorner", StatsFrame).CornerRadius = UDim.new(0, 12)
+            
+            local Gradient = Instance.new("UIGradient")
+            Gradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 20, 30)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 10, 15))
+            })
+            Gradient.Rotation = 45
+            Gradient.Parent = StatsFrame
             StatsFrame.Parent = ContentHolder
 
             local function CreateStatLine(name, yPos)
                 local Lbl = Instance.new("TextLabel")
-                Lbl.Size = UDim2.new(1, -20, 0, 30)
-                Lbl.Position = UDim2.new(0, 10, 0, yPos)
+                Lbl.Size = UDim2.new(1, -30, 0, 30)
+                Lbl.Position = UDim2.new(0, 15, 0, yPos)
                 Lbl.BackgroundTransparency = 1
-                Lbl.Font = Enum.Font.GothamMedium
-                Lbl.TextColor3 = Color3.fromRGB(220, 220, 220)
-                Lbl.TextSize = 18
+                Lbl.Font = Enum.Font.GothamBold
+                Lbl.TextColor3 = Color3.fromRGB(240, 240, 240)
+                Lbl.TextSize = 16
                 Lbl.TextXAlignment = Enum.TextXAlignment.Left
                 Lbl.Parent = StatsFrame
                 return Lbl
             end
 
-            local MoneyTxt = CreateStatLine("Money: ...", 10)
-            local LevelTxt = CreateStatLine("Level: ...", 45)
-            local PrestigeTxt = CreateStatLine("Prestige: ...", 80)
+            local MoneyTxt = CreateStatLine("Money: ...", 15)
+            local LevelTxt = CreateStatLine("Level: ...", 50)
+            local PrestigeTxt = CreateStatLine("Prestige: ...", 85)
 
             StatsUpdateLoop = RunService.RenderStepped:Connect(function()
                 pcall(function()
                     local stats = Players.LocalPlayer.PlayerStats
-                    MoneyTxt.Text = "💰 Money: " .. stats.Money.Value .. " / " .. (getgenv().TargetMoney or 0)
+                    MoneyTxt.Text = "💸 " .. stats.Money.Value .. " / " .. (getgenv().TargetMoney or 0)
                     LevelTxt.Text = "⭐ Level: " .. stats.Level.Value
                     PrestigeTxt.Text = "🏆 Prestige: " .. stats.Prestige.Value
                 end)
             end)
 
             local DisableBtn = Instance.new("TextButton")
-            DisableBtn.Size = UDim2.new(0.6, 0, 0, 40)
-            DisableBtn.Position = UDim2.new(0.2, 0, 1, -50)
-            DisableBtn.Text = "TURN ON SCREEN"
-            DisableBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+            DisableBtn.Size = UDim2.new(0.5, 0, 0, 45)
+            DisableBtn.Position = UDim2.new(0.25, 0, 1, -60)
+            DisableBtn.Text = "WAKE UP"
+            DisableBtn.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
             DisableBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
             DisableBtn.Font = Enum.Font.GothamBold
             DisableBtn.TextSize = 14
-            Instance.new("UICorner", DisableBtn).CornerRadius = UDim.new(0, 8)
+            Instance.new("UICorner", DisableBtn).CornerRadius = UDim.new(0, 22)
             DisableBtn.Parent = ContentHolder
 
             DisableBtn.MouseButton1Click:Connect(function()
@@ -183,7 +182,28 @@ UpdateSafeModeState = function()
 
     pcall(function()
         if safeModeEnabled then
+            -- ЭКСТРЕМАЛЬНАЯ ОПТИМИЗАЦИЯ
+            sethiddenproperty(workspace.Terrain, "Decoration", false)
+            workspace.Terrain.WaterWaveSize = 0
+            workspace.Terrain.WaterWaveSpeed = 0
+            workspace.Terrain.WaterReflectance = 0
+            workspace.Terrain.WaterTransparency = 0
+            
+            Lighting.GlobalShadows = false
+            Lighting.FogEnd = 9e9
+            Lighting.Brightness = 0
             settings().Rendering.QualityLevel = 1
+            
+            for _, v in pairs(game:GetDescendants()) do
+                if v:IsA("Part") or v:IsA("MeshPart") or v:IsA("UnionOperation") then
+                    v.Material = Enum.Material.SmoothPlastic
+                    v.Reflectance = 0
+                    v.CastShadow = false
+                elseif v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
+                    v.Enabled = false
+                end
+            end
+            
             if setfpscap then setfpscap(30) end
             
             if blackScreenEnabled then
@@ -194,9 +214,11 @@ UpdateSafeModeState = function()
                 ToggleBlackScreen(false)
             end
         else
+            -- ВОЗВРАТ (Частичный, материалы не вернутся для экономии памяти)
             RunService:Set3dRenderingEnabled(true)
             ToggleBlackScreen(false)
             settings().Rendering.QualityLevel = 10
+            Lighting.GlobalShadows = true
             if setfpscap then setfpscap(60) end
         end
     end)
@@ -220,6 +242,9 @@ local function SaveConfig()
         AltsList = getgenv().QuarkSettings.AltsList, 
         FarmModeIndex = getgenv().QuarkSettings.FarmModeIndex,
         AutoBuyLucky = getgenv().QuarkSettings.AutoBuyLucky,
+        MaxRokas = getgenv().QuarkSettings.MaxRokas,
+        MaxArrows = getgenv().QuarkSettings.MaxArrows,
+        UseBetaUI = getgenv().QuarkSettings.UseBetaUI,
         ThemeColor = {
             R = getgenv().QuarkSettings.ThemeColor.R,
             G = getgenv().QuarkSettings.ThemeColor.G,
@@ -246,6 +271,9 @@ local function LoadConfig()
         TargetMoney = 0, 
         FarmModeIndex = 1,
         AutoBuyLucky = true,
+        MaxRokas = 25,
+        MaxArrows = 25,
+        UseBetaUI = true, 
         AltsList = {},
         ThemeColor = Color3.fromRGB(15, 15, 20) 
     }
@@ -276,6 +304,9 @@ local function LoadConfig()
             Defaults.TargetMoney = result.TargetMoney or 300000
             Defaults.FarmModeIndex = result.FarmModeIndex or 1
             Defaults.AltsList = result.AltsList or {}
+            Defaults.MaxRokas = result.MaxRokas or 25
+            Defaults.MaxArrows = result.MaxArrows or 25
+            Defaults.UseBetaUI = result.UseBetaUI
             
             if result.AutoBuyLucky ~= nil then
                  Defaults.AutoBuyLucky = result.AutoBuyLucky
@@ -297,7 +328,6 @@ end
 
 LoadConfig()
 
--- 4. SETUP MENU
 if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "ВСТАВЬ") or getgenv().TelegramChatID == "" then
     if CoreGui:FindFirstChild("QuarkSetup") then CoreGui:FindFirstChild("QuarkSetup"):Destroy() end
 
@@ -420,7 +450,6 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
     repeat task.wait() until not waiting
 end
 
--- 5. ТЕЛЕГРАМ И ЛОГИ
 getgenv().QuarkLastUpdateId = getgenv().QuarkLastUpdateId or 0
 local lastUpdateId = getgenv().QuarkLastUpdateId 
 
@@ -468,58 +497,15 @@ local function SendTelegramMessage(text, msgType, replyMarkup)
     end
 end
 
-local Log -- Forward declare
-local LogContainer = nil
+local Log 
 
--- UI Building
-local DebugUI = {}
-local MainFrame = nil
-local UIGradient = nil
-
-local function UpdateGlassEffect()
-    if not MainFrame then return end
-    if not UIGradient then
-        UIGradient = Instance.new("UIGradient")
-        UIGradient.Rotation = 45
-        UIGradient.Color = ColorSequence.new{
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(220, 220, 255)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
-        }
-        UIGradient.Transparency = NumberSequence.new{
-            NumberSequenceKeypoint.new(0, 0),
-            NumberSequenceKeypoint.new(0.5, 0.2), 
-            NumberSequenceKeypoint.new(1, 0)
-        }
-        UIGradient.Parent = MainFrame
-        UIGradient.Enabled = false
-    end
-    
-    if getgenv().QuarkSettings.GlassEffect then
-        UIGradient.Enabled = true
-        TweenService:Create(MainFrame, TweenInfo.new(0.5), {BackgroundTransparency = 0.4}):Play()
-        MainFrame.UIStroke.Transparency = 0.4 
-        MainFrame.UIStroke.Color = Color3.fromRGB(150, 200, 255)
-    else
-        UIGradient.Enabled = false
-        TweenService:Create(MainFrame, TweenInfo.new(0.5), {BackgroundTransparency = getgenv().QuarkSettings.Transparency}):Play()
-        MainFrame.UIStroke.Transparency = 0.85
-        MainFrame.UIStroke.Color = Color3.fromRGB(255, 255, 255)
-    end
-end
-
-function DebugUI:Create()
-    if CoreGui:FindFirstChild("QuarkDebugUI") then
-        CoreGui:FindFirstChild("QuarkDebugUI"):Destroy()
-    end
-    if Lighting:FindFirstChild("QuarkBlur") then Lighting:FindFirstChild("QuarkBlur"):Destroy() end
-
+UIManager.CreateClassicUI = function()
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "QuarkDebugUI"
     ScreenGui.Parent = CoreGui
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-    MainFrame = Instance.new("Frame")
+    local MainFrame = Instance.new("Frame")
     MainFrame.Name = "MainFrame"
     MainFrame.Parent = ScreenGui
     MainFrame.BackgroundColor3 = getgenv().QuarkSettings.ThemeColor
@@ -530,6 +516,8 @@ function DebugUI:Create()
     MainFrame.Active = true
     MainFrame.Draggable = true
     MainFrame.ClipsDescendants = true
+    
+    MainFrameInstance = MainFrame 
 
     local UICorner = Instance.new("UICorner")
     UICorner.CornerRadius = UDim.new(0, 12)
@@ -931,7 +919,20 @@ function DebugUI:Create()
         SaveConfig()
     end)
     
+    CreateInputIn(LuckyCat, "Стенд Фарм: Рока", getgenv().QuarkSettings.MaxRokas, function(val)
+        getgenv().QuarkSettings.MaxRokas = val
+        SaveConfig()
+    end)
+    CreateInputIn(LuckyCat, "Стенд Фарм: Стрелы", getgenv().QuarkSettings.MaxArrows, function(val)
+        getgenv().QuarkSettings.MaxArrows = val
+        SaveConfig()
+    end)
+    
     local VisualCat = CreateCategory("Внешний вид (UI)")
+    CreateToggleIn(VisualCat, "Beta Design (Modern UI)", getgenv().QuarkSettings.UseBetaUI, function(v) 
+        getgenv().QuarkSettings.UseBetaUI = v 
+        UIManager.RefreshUI()
+    end)
     CreateToggleIn(VisualCat, "Эффект Liquid Glass", getgenv().QuarkSettings.GlassEffect, function(v) 
         getgenv().QuarkSettings.GlassEffect = v 
         UpdateGlassEffect()
@@ -964,37 +965,401 @@ function DebugUI:Create()
     CreditLabel.BackgroundTransparency = 1
     CreditLabel.Size = UDim2.new(1, 0, 0, 30)
     CreditLabel.Font = Enum.Font.Code
-    CreditLabel.Text = "Dev: MDW prod. | Beta"
+    CreditLabel.Text = "Dev: MDW prod. | Classic"
     CreditLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
     CreditLabel.TextSize = 11
     CreditLabel.TextTransparency = 0.5
 
-    UpdateGlassEffect() 
+    return LogsPage
+end
+
+UIManager.CreateBetaUI = function()
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "QuarkBetaUI"
+    ScreenGui.Parent = CoreGui
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    -- MAIN CONTAINER STYLE (Glassmorphism Cyber)
+    local MainContainer = Instance.new("Frame")
+    MainContainer.Name = "MainContainer"
+    MainContainer.Parent = ScreenGui
+    MainContainer.Size = UDim2.new(0, 550, 0, 380)
+    MainContainer.Position = UDim2.new(0.5, -275, 0.5, -190)
+    MainContainer.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
+    MainContainer.BackgroundTransparency = 0.1
+    MainContainer.BorderSizePixel = 0
+    MainContainer.Active = true
+    MainContainer.Draggable = true
+    
+    MainFrameInstance = MainContainer 
+
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 16)
+    UICorner.Parent = MainContainer
+
+    local UIStroke = Instance.new("UIStroke")
+    UIStroke.Parent = MainContainer
+    UIStroke.Color = Color3.fromRGB(60, 60, 80)
+    UIStroke.Thickness = 1.5
+    
+    -- Glowing Effect
+    local Shadow = Instance.new("ImageLabel")
+    Shadow.Name = "Shadow"
+    Shadow.Parent = MainContainer
+    Shadow.BackgroundTransparency = 1
+    Shadow.Position = UDim2.new(0, -25, 0, -25)
+    Shadow.Size = UDim2.new(1, 50, 1, 50)
+    Shadow.ZIndex = 0
+    Shadow.Image = "rbxassetid://6015897843" -- Soft Glow
+    Shadow.ImageColor3 = Color3.fromRGB(80, 120, 255)
+    Shadow.ImageTransparency = 0.6
+
+    -- SIDEBAR
+    local SideBar = Instance.new("Frame")
+    SideBar.Name = "SideBar"
+    SideBar.Parent = MainContainer
+    SideBar.Size = UDim2.new(0, 70, 1, 0)
+    SideBar.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+    SideBar.BorderSizePixel = 0
+    
+    local SideCorner = Instance.new("UICorner")
+    SideCorner.CornerRadius = UDim.new(0, 16)
+    SideCorner.Parent = SideBar
+    
+    local HideRight = Instance.new("Frame")
+    HideRight.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+    HideRight.BorderSizePixel = 0
+    HideRight.Size = UDim2.new(0, 20, 1, 0)
+    HideRight.Position = UDim2.new(1, -10, 0, 0)
+    HideRight.Parent = SideBar
+    
+    -- LOGO
+    local Logo = Instance.new("TextLabel")
+    Logo.Text = "Q"
+    Logo.Parent = SideBar
+    Logo.Size = UDim2.new(1, 0, 0, 60)
+    Logo.BackgroundTransparency = 1
+    Logo.TextColor3 = Color3.fromRGB(100, 150, 255)
+    Logo.Font = Enum.Font.FredokaOne
+    Logo.TextSize = 34
+    
+    local ContentArea = Instance.new("Frame")
+    ContentArea.Name = "Content"
+    ContentArea.Parent = MainContainer
+    ContentArea.Size = UDim2.new(1, -70, 1, 0)
+    ContentArea.Position = UDim2.new(0, 70, 0, 0)
+    ContentArea.BackgroundTransparency = 1
+    
+    local PageContainer = Instance.new("Frame")
+    PageContainer.Parent = ContentArea
+    PageContainer.Size = UDim2.new(1, -24, 1, -24)
+    PageContainer.Position = UDim2.new(0, 12, 0, 12)
+    PageContainer.BackgroundTransparency = 1
+    
+    -- LOGS PAGE STYLE
+    local LogsPage = Instance.new("ScrollingFrame")
+    LogsPage.Parent = PageContainer
+    LogsPage.Size = UDim2.new(1, 0, 1, 0)
+    LogsPage.BackgroundTransparency = 1
+    LogsPage.ScrollBarThickness = 3
+    LogsPage.ScrollBarImageColor3 = Color3.fromRGB(80, 120, 255)
+    LogsPage.Visible = true
+    
+    local LogsLayout = Instance.new("UIListLayout")
+    LogsLayout.Parent = LogsPage
+    LogsLayout.Padding = UDim.new(0, 6)
+    LogsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    LogsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        LogsPage.CanvasSize = UDim2.new(0, 0, 0, LogsLayout.AbsoluteContentSize.Y + 20)
+    end)
+    
+    -- SETTINGS PAGE STYLE
+    local SettingsPage = Instance.new("ScrollingFrame")
+    SettingsPage.Parent = PageContainer
+    SettingsPage.Size = UDim2.new(1, 0, 1, 0)
+    SettingsPage.BackgroundTransparency = 1
+    SettingsPage.ScrollBarThickness = 3
+    SettingsPage.ScrollBarImageColor3 = Color3.fromRGB(80, 120, 255)
+    SettingsPage.Visible = false
+    
+    local SettingsLayout = Instance.new("UIListLayout")
+    SettingsLayout.Parent = SettingsPage
+    SettingsLayout.Padding = UDim.new(0, 10)
+    SettingsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    SettingsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        SettingsPage.CanvasSize = UDim2.new(0, 0, 0, SettingsLayout.AbsoluteContentSize.Y + 20)
+    end)
+    
+    local function SwitchTab(tabName)
+        if tabName == "Logs" then
+            LogsPage.Visible = true
+            SettingsPage.Visible = false
+        elseif tabName == "Settings" then
+            LogsPage.Visible = false
+            SettingsPage.Visible = true
+        end
+    end
+    
+    local function CreateNavButton(icon, yPos, tabName)
+        local Btn = Instance.new("TextButton")
+        Btn.Parent = SideBar
+        Btn.Size = UDim2.new(0, 44, 0, 44)
+        Btn.Position = UDim2.new(0.5, -22, 0, yPos)
+        Btn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+        Btn.Text = icon
+        Btn.TextColor3 = Color3.fromRGB(150, 150, 160)
+        Btn.Font = Enum.Font.GothamMedium
+        Btn.TextSize = 20
+        
+        local Corner = Instance.new("UICorner")
+        Corner.CornerRadius = UDim.new(0, 12)
+        Corner.Parent = Btn
+        
+        -- Selection Indicator
+        local Indicator = Instance.new("Frame")
+        Indicator.Size = UDim2.new(0, 3, 0, 20)
+        Indicator.Position = UDim2.new(0, -8, 0.5, -10)
+        Indicator.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
+        Indicator.BorderSizePixel = 0
+        Indicator.Parent = Btn
+        Indicator.BackgroundTransparency = 1
+        
+        Btn.MouseButton1Click:Connect(function()
+            SwitchTab(tabName)
+            for _, b in pairs(SideBar:GetChildren()) do
+                if b:IsA("TextButton") then
+                    TweenService:Create(b, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(30, 30, 35), TextColor3 = Color3.fromRGB(150, 150, 160)}):Play()
+                    if b:FindFirstChild("Frame") then b.Frame.BackgroundTransparency = 1 end
+                end
+            end
+            TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(40, 45, 60), TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+            Indicator.BackgroundTransparency = 0
+        end)
+        
+        if tabName == "Logs" then
+             Btn.BackgroundColor3 = Color3.fromRGB(40, 45, 60)
+             Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+             Indicator.BackgroundTransparency = 0
+        end
+    end
+    
+    CreateNavButton("📜", 80, "Logs")
+    CreateNavButton("⚙️", 140, "Settings")
+    
+    local function CreateSection(text)
+        local Label = Instance.new("TextLabel")
+        Label.Parent = SettingsPage
+        Label.Text = text:upper()
+        Label.Font = Enum.Font.GothamBlack
+        Label.TextColor3 = Color3.fromRGB(80, 90, 110)
+        Label.TextSize = 11
+        Label.Size = UDim2.new(1, 0, 0, 20)
+        Label.BackgroundTransparency = 1
+        Label.TextXAlignment = Enum.TextXAlignment.Left
+    end
+    
+    local function CreateToggleBeta(text, state, callback)
+        local Holder = Instance.new("Frame")
+        Holder.Parent = SettingsPage
+        Holder.Size = UDim2.new(1, 0, 0, 40)
+        Holder.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+        
+        local HCorner = Instance.new("UICorner")
+        HCorner.CornerRadius = UDim.new(0, 10)
+        HCorner.Parent = Holder
+        
+        local Lbl = Instance.new("TextLabel")
+        Lbl.Parent = Holder
+        Lbl.Text = text
+        Lbl.Size = UDim2.new(0.7, 0, 1, 0)
+        Lbl.Position = UDim2.new(0, 15, 0, 0)
+        Lbl.BackgroundTransparency = 1
+        Lbl.TextColor3 = Color3.fromRGB(230, 230, 240)
+        Lbl.Font = Enum.Font.GothamMedium
+        Lbl.TextSize = 13
+        Lbl.TextXAlignment = Enum.TextXAlignment.Left
+        
+        local Btn = Instance.new("TextButton")
+        Btn.Parent = Holder
+        Btn.Size = UDim2.new(0, 40, 0, 20)
+        Btn.Position = UDim2.new(1, -55, 0.5, -10)
+        Btn.BackgroundColor3 = state and Color3.fromRGB(100, 150, 255) or Color3.fromRGB(45, 45, 50)
+        Btn.Text = ""
+        
+        local BCorner = Instance.new("UICorner")
+        BCorner.CornerRadius = UDim.new(1, 0)
+        BCorner.Parent = Btn
+        
+        local Circle = Instance.new("Frame")
+        Circle.Parent = Btn
+        Circle.Size = UDim2.new(0, 16, 0, 16)
+        Circle.Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+        Circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        
+        local CCorner = Instance.new("UICorner")
+        CCorner.CornerRadius = UDim.new(1, 0)
+        CCorner.Parent = Circle
+        
+        local toggled = state
+        Btn.MouseButton1Click:Connect(function()
+            toggled = not toggled
+            callback(toggled)
+            SaveConfig()
+            
+            local targetCol = toggled and Color3.fromRGB(100, 150, 255) or Color3.fromRGB(45, 45, 50)
+            local targetPos = toggled and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+            
+            TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = targetCol}):Play()
+            TweenService:Create(Circle, TweenInfo.new(0.2), {Position = targetPos}):Play()
+        end)
+    end
+    
+    local function CreateInputBeta(text, default, callback)
+        local Holder = Instance.new("Frame")
+        Holder.Parent = SettingsPage
+        Holder.Size = UDim2.new(1, 0, 0, 40)
+        Holder.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+        
+        local HCorner = Instance.new("UICorner")
+        HCorner.CornerRadius = UDim.new(0, 10)
+        HCorner.Parent = Holder
+        
+        local Lbl = Instance.new("TextLabel")
+        Lbl.Parent = Holder
+        Lbl.Text = text
+        Lbl.Size = UDim2.new(0.6, 0, 1, 0)
+        Lbl.Position = UDim2.new(0, 15, 0, 0)
+        Lbl.BackgroundTransparency = 1
+        Lbl.TextColor3 = Color3.fromRGB(230, 230, 240)
+        Lbl.Font = Enum.Font.GothamMedium
+        Lbl.TextSize = 13
+        Lbl.TextXAlignment = Enum.TextXAlignment.Left
+        
+        local BoxContainer = Instance.new("Frame")
+        BoxContainer.Parent = Holder
+        BoxContainer.Size = UDim2.new(0, 90, 0, 26)
+        BoxContainer.Position = UDim2.new(1, -105, 0.5, -13)
+        BoxContainer.BackgroundColor3 = Color3.fromRGB(12, 12, 15)
+        
+        local BCCorner = Instance.new("UICorner")
+        BCCorner.CornerRadius = UDim.new(0, 6)
+        BCCorner.Parent = BoxContainer
+        
+        local BStroke = Instance.new("UIStroke")
+        BStroke.Color = Color3.fromRGB(40, 40, 50)
+        BStroke.Parent = BoxContainer
+
+        local Box = Instance.new("TextBox")
+        Box.Parent = BoxContainer
+        Box.Size = UDim2.new(1, -10, 1, 0)
+        Box.Position = UDim2.new(0, 5, 0, 0)
+        Box.BackgroundTransparency = 1
+        Box.TextColor3 = Color3.fromRGB(255, 255, 255)
+        Box.Font = Enum.Font.Code
+        Box.TextSize = 12
+        Box.Text = tostring(default)
+        
+        Box.FocusLost:Connect(function()
+            local n = tonumber(Box.Text)
+            if n then
+                callback(n)
+                SaveConfig()
+                BStroke.Color = Color3.fromRGB(100, 255, 100)
+                task.wait(0.5)
+                BStroke.Color = Color3.fromRGB(40, 40, 50)
+            else
+                Box.Text = tostring(default)
+            end
+        end)
+    end
+    
+    local function CreateModeSelectorBeta(text, modes, currentIdx, callback)
+        local Holder = Instance.new("Frame")
+        Holder.Parent = SettingsPage
+        Holder.Size = UDim2.new(1, 0, 0, 70)
+        Holder.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+        Instance.new("UICorner", Holder).CornerRadius = UDim.new(0, 10)
+        
+        local Lbl = Instance.new("TextLabel")
+        Lbl.Parent = Holder
+        Lbl.Text = text
+        Lbl.Size = UDim2.new(1, 0, 0, 30)
+        Lbl.Position = UDim2.new(0, 15, 0, 0)
+        Lbl.BackgroundTransparency = 1
+        Lbl.TextColor3 = Color3.fromRGB(230, 230, 240)
+        Lbl.Font = Enum.Font.GothamMedium
+        Lbl.TextSize = 13
+        Lbl.TextXAlignment = Enum.TextXAlignment.Left
+        
+        local Btn = Instance.new("TextButton")
+        Btn.Parent = Holder
+        Btn.Size = UDim2.new(1, -30, 0, 30)
+        Btn.Position = UDim2.new(0, 15, 0, 30)
+        Btn.BackgroundColor3 = Color3.fromRGB(12, 12, 15)
+        Btn.Text = modes[currentIdx]
+        Btn.TextColor3 = Color3.fromRGB(100, 150, 255)
+        Btn.Font = Enum.Font.GothamBold
+        Btn.TextSize = 12
+        Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
+        
+        local BStroke = Instance.new("UIStroke")
+        BStroke.Color = Color3.fromRGB(40, 40, 50)
+        BStroke.Parent = Btn
+        
+        local idx = currentIdx
+        Btn.MouseButton1Click:Connect(function()
+            idx = idx + 1
+            if idx > #modes then idx = 1 end
+            Btn.Text = modes[idx]
+            callback(idx)
+            SaveConfig()
+        end)
+    end
+
+    CreateSection("General")
+    CreateToggleBeta("Use Telegram", getgenv().QuarkSettings.TelegramEnabled, function(v) getgenv().QuarkSettings.TelegramEnabled = v end)
+    CreateToggleBeta("UI Logging", getgenv().QuarkSettings.UILogging, function(v) getgenv().QuarkSettings.UILogging = v end)
+    
+    CreateSection("Farm Strategy")
+    CreateModeSelectorBeta("Current Mode", FarmModes, getgenv().QuarkSettings.FarmModeIndex, function(idx) getgenv().QuarkSettings.FarmModeIndex = idx end)
+    CreateInputBeta("Target Money", getgenv().QuarkSettings.TargetMoney, function(v) getgenv().QuarkSettings.TargetMoney = v; getgenv().TargetMoney = v end)
+    
+    CreateSection("Resource Management")
+    CreateToggleBeta("Auto Buy Arrows", getgenv().QuarkSettings.AutoBuyLucky, function(v) getgenv().QuarkSettings.AutoBuyLucky = v end)
+    CreateInputBeta("Stand Farm: Max Roka", getgenv().QuarkSettings.MaxRokas, function(v) getgenv().QuarkSettings.MaxRokas = v end)
+    CreateInputBeta("Stand Farm: Max Arrow", getgenv().QuarkSettings.MaxArrows, function(v) getgenv().QuarkSettings.MaxArrows = v end)
+    
+    CreateSection("System")
+    CreateToggleBeta("Cyber UI (Restart to revert)", true, function(v) end) -- Placeholder
+    CreateToggleBeta("FPS Boost (Extreme)", getgenv().QuarkSettings.SafeMode, function(v) 
+        getgenv().QuarkSettings.SafeMode = v 
+        UpdateSafeModeState()
+    end)
+    CreateToggleBeta("Black Screen Mode", getgenv().QuarkSettings.BlackScreen, function(v)
+        getgenv().QuarkSettings.BlackScreen = v
+        UpdateSafeModeState()
+    end)
 
     return LogsPage
 end
 
-LogContainer = DebugUI:Create()
-
+-- CUSTOM LOG DESIGN
 Log = function(text, msgType) 
     SendTelegramMessage(text, msgType)
 
     if not getgenv().QuarkSettings.UILogging then return end
 
-    local timestamp = os.date("%H:%M:%S")
-    local formattedMsg = string.format("[%s] %s", timestamp, text)
+    local timestamp = os.date("%H:%M")
     
-    local textColor = Color3.fromRGB(200, 200, 200)
-    local prefix = "•"
- 
-    if msgType == "success" then textColor = Color3.fromRGB(100, 255, 120); prefix = "✅"
-    elseif msgType == "warn" then textColor = Color3.fromRGB(255, 200, 80); prefix = "⚠️"
-    elseif msgType == "error" then textColor = Color3.fromRGB(255, 80, 80); prefix = "⛔"
-    elseif msgType == "tg" then textColor = Color3.fromRGB(80, 160, 255); prefix = "✈️"
-    elseif msgType == "action" then textColor = Color3.fromRGB(180, 180, 255); prefix = "⚡"
-    elseif msgType == "finish" then textColor = Color3.fromRGB(255, 215, 0); prefix = "🏆" 
-    elseif msgType == "inject" then textColor = Color3.fromRGB(255, 105, 180); prefix = "💉"
-    elseif msgType == "lucky" then textColor = Color3.fromRGB(255, 0, 255); prefix = "🏹"
+    local themeColor = Color3.fromRGB(200, 200, 200)
+    local icon = "INFO"
+    
+    if msgType == "success" then themeColor = Color3.fromRGB(100, 255, 120); icon = "DONE"
+    elseif msgType == "warn" then themeColor = Color3.fromRGB(255, 200, 80); icon = "WARN"
+    elseif msgType == "error" then themeColor = Color3.fromRGB(255, 80, 80); icon = "FAIL"
+    elseif msgType == "action" then themeColor = Color3.fromRGB(100, 180, 255); icon = "ACT"
+    elseif msgType == "lucky" then themeColor = Color3.fromRGB(220, 100, 255); icon = "LUCK"
     end
 
     print("Quark: " .. text)
@@ -1002,42 +1367,124 @@ Log = function(text, msgType)
     task.spawn(function()
         if LogContainer and LogContainer.Parent then
             local scroller = LogContainer
-            local isAtBottom = false
-            
-            if scroller.CanvasPosition.Y >= (scroller.CanvasSize.Y.Offset - scroller.AbsoluteWindowSize.Y - 50) then
-                isAtBottom = true
-            end
+            local isAtBottom = scroller.CanvasPosition.Y >= (scroller.CanvasSize.Y.Offset - scroller.AbsoluteWindowSize.Y - 50)
 
-            local Label = Instance.new("TextLabel")
-            Label.Parent = LogContainer
-            Label.BackgroundTransparency = 1
-            Label.Size = UDim2.new(1, 0, 0, 0)
-            Label.Font = Enum.Font.GothamMedium
-     
-            Label.Text = prefix .. " " .. formattedMsg
-            Label.TextColor3 = textColor
-            Label.TextSize = 13
-            Label.TextXAlignment = Enum.TextXAlignment.Left
-            Label.TextWrapped = true
-            Label.AutomaticSize = Enum.AutomaticSize.Y
-            Label.TextTransparency = 1
-  
-            TweenService:Create(Label, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
+            -- CARD STYLE LOG
+            local Card = Instance.new("Frame")
+            Card.Size = UDim2.new(1, 0, 0, 0) -- Auto height later
+            Card.AutomaticSize = Enum.AutomaticSize.Y
+            Card.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+            Card.BackgroundTransparency = 0.5
+            Card.BorderSizePixel = 0
+            Card.Parent = LogContainer
+            
+            local CCorner = Instance.new("UICorner")
+            CCorner.CornerRadius = UDim.new(0, 6)
+            CCorner.Parent = Card
+            
+            local Strip = Instance.new("Frame")
+            Strip.Size = UDim2.new(0, 4, 1, 0)
+            Strip.BackgroundColor3 = themeColor
+            Strip.BorderSizePixel = 0
+            Strip.Parent = Card
+            
+            local SCorner = Instance.new("UICorner")
+            SCorner.CornerRadius = UDim.new(0, 6)
+            SCorner.Parent = Strip
+            
+            local TimeLbl = Instance.new("TextLabel")
+            TimeLbl.Text = timestamp
+            TimeLbl.Font = Enum.Font.Code
+            TimeLbl.TextSize = 10
+            TimeLbl.TextColor3 = Color3.fromRGB(100, 100, 120)
+            TimeLbl.Size = UDim2.new(0, 40, 0, 20)
+            TimeLbl.Position = UDim2.new(0, 10, 0, 0)
+            TimeLbl.BackgroundTransparency = 1
+            TimeLbl.Parent = Card
+            
+            local TypeLbl = Instance.new("TextLabel")
+            TypeLbl.Text = icon
+            TypeLbl.Font = Enum.Font.GothamBold
+            TypeLbl.TextSize = 10
+            TypeLbl.TextColor3 = themeColor
+            TypeLbl.Size = UDim2.new(0, 40, 0, 20)
+            TypeLbl.Position = UDim2.new(0, 50, 0, 0)
+            TypeLbl.BackgroundTransparency = 1
+            TypeLbl.Parent = Card
+            
+            local MsgLbl = Instance.new("TextLabel")
+            MsgLbl.Text = text
+            MsgLbl.Font = Enum.Font.GothamMedium
+            MsgLbl.TextSize = 12
+            MsgLbl.TextColor3 = Color3.fromRGB(230, 230, 240)
+            MsgLbl.Size = UDim2.new(1, -20, 0, 0)
+            MsgLbl.Position = UDim2.new(0, 10, 0, 20)
+            MsgLbl.BackgroundTransparency = 1
+            MsgLbl.TextXAlignment = Enum.TextXAlignment.Left
+            MsgLbl.TextWrapped = true
+            MsgLbl.AutomaticSize = Enum.AutomaticSize.Y
+            MsgLbl.Parent = Card
+            
+            -- Padding at bottom
+            local Pad = Instance.new("Frame")
+            Pad.Size = UDim2.new(1, 0, 0, 5)
+            Pad.BackgroundTransparency = 1
+            Pad.LayoutOrder = 999
+            Pad.Parent = Card
+
+            Card.BackgroundTransparency = 1
+            for _, v in pairs(Card:GetDescendants()) do
+                if v:IsA("TextLabel") then v.TextTransparency = 1 end
+                if v:IsA("Frame") then v.BackgroundTransparency = 1 end
+            end
+            
+            TweenService:Create(Card, TweenInfo.new(0.3), {BackgroundTransparency = 0.5}):Play()
+            Strip.BackgroundTransparency = 0 
+            for _, v in pairs(Card:GetDescendants()) do
+                if v:IsA("TextLabel") then TweenService:Create(v, TweenInfo.new(0.3), {TextTransparency = 0}):Play() end
+            end
+            
             task.wait() 
             
             if isAtBottom then
                 scroller.CanvasPosition = Vector2.new(0, scroller.CanvasSize.Y.Offset)
             end
     
-            if #LogContainer:GetChildren() > 300 then
-                local firstChild = LogContainer:GetChildren()[2] 
-                if firstChild then firstChild:Destroy() end
+            if #LogContainer:GetChildren() > 100 then
+                LogContainer:GetChildren()[1]:Destroy()
             end
         end
     end)
 end
 
--- 6. ЛОГИКА HOP И TELEPORT
+UIManager.RefreshUI = function()
+    if MainFrameInstance then
+        TweenService:Create(MainFrameInstance, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
+        for _, v in pairs(MainFrameInstance:GetDescendants()) do
+            if v:IsA("TextLabel") or v:IsA("TextButton") then
+                TweenService:Create(v, TweenInfo.new(0.3), {TextTransparency = 1}):Play()
+            elseif v:IsA("Frame") then
+                TweenService:Create(v, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
+            elseif v:IsA("UIStroke") then
+                TweenService:Create(v, TweenInfo.new(0.3), {Transparency = 1}):Play()
+            elseif v:IsA("ImageLabel") then
+                TweenService:Create(v, TweenInfo.new(0.3), {ImageTransparency = 1}):Play()
+            end
+        end
+        task.wait(0.3)
+        if CoreGui:FindFirstChild("QuarkDebugUI") then CoreGui.QuarkDebugUI:Destroy() end
+        if CoreGui:FindFirstChild("QuarkBetaUI") then CoreGui.QuarkBetaUI:Destroy() end
+    end
+    
+    if getgenv().QuarkSettings.UseBetaUI then
+        LogContainer = UIManager.CreateBetaUI()
+    else
+        LogContainer = UIManager.CreateClassicUI()
+    end
+end
+
+UIManager.RefreshUI()
+
 local function TPReturner()
     local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=' .. getgenv().sortOrder .. '&limit=100'
     if serverHopData.cursor and serverHopData.cursor ~= "" then
@@ -1090,7 +1537,6 @@ local function Teleport()
     end
 end
 
--- 7. ПРОВЕРКА АЛЬТОВ (Теперь безопасная)
 getgenv().CheckForAlts = function()
     local alts = getgenv().QuarkSettings.AltsList or {}
     if #alts == 0 then return end
@@ -1133,7 +1579,6 @@ Players.PlayerAdded:Connect(function(plr)
     getgenv().CheckForAlts()
 end)
 
--- 8. ОБРАБОТЧИК КОМАНД
 local function ClearWebhook()
     if getgenv().TelegramBotToken == "" then return end
     local url = "https://api.telegram.org/bot" .. getgenv().TelegramBotToken .. "/deleteWebhook"
@@ -1268,7 +1713,6 @@ local function HandleCommands()
     end)
 end
 
--- 9. ЗАПУСК ИГРОВОЙ ЛОГИКИ
 getgenv().TargetMoney = getgenv().QuarkSettings.TargetMoney 
 getgenv().ItemCollectionDelay = 3 
 getgenv().ServerFarmTime = 180 
@@ -1461,16 +1905,22 @@ local function StartLuckyFarmLoop()
         ["Quinton's Glove"] = true, ["Zeppeli's Hat"] = true, ["Lucky Arrow"] = false,
         ["Clackers"] = true, ["Steel Ball"] = true, ["Dio's Diary"] = true
     }
-
-    local function CountLuckyArrows()
+    
+    local function CountItem(name)
         local count = 0
-        for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
-            if tool.Name == "Lucky Arrow" then count += 1 end
+        if LocalPlayer.Backpack then
+            for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
+                if tool.Name == name then count = count + 1 end
+            end
         end
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Lucky Arrow") then
-            count += 1
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(name) then
+            count = count + 1
         end
         return count
+    end
+
+    local function CountLuckyArrows()
+        return CountItem("Lucky Arrow")
     end
 
     local function HasLuckyArrows()
@@ -2166,9 +2616,14 @@ if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
     elseif not getgenv().standList[LocalPlayer.PlayerStats.Stand.Value] and LocalPlayer.PlayerStats.Level.Value >= 3 and dontTPOnDeath then
         Log("Фарм ресурсов для стенда...", "warn")
         task.wait(5)
-        farmItem("Rokakaka", 5) 
-        farmItem("Mysterious Arrow", 5) 
-        if countItems("Mysterious Arrow") >= 5 and countItems("Mysterious Arrow") >= 5 then 
+        
+        local rokaNeeded = getgenv().QuarkSettings.MaxRokas or 5
+        local arrowNeeded = getgenv().QuarkSettings.MaxArrows or 5
+        
+        farmItem("Rokakaka", rokaNeeded) 
+        farmItem("Mysterious Arrow", arrowNeeded) 
+        
+        if countItems("Rokakaka") >= rokaNeeded and countItems("Mysterious Arrow") >= arrowNeeded then 
             Log("Ресурсы готовы. Получаю стенд...", "action")
             dontTPOnDeath = false
             attemptStandFarm()
@@ -2352,7 +2807,6 @@ end)
 
 hookfunction(workspace.Raycast, function() return end)
 
--- ФИНАЛЬНЫЙ ЗАПУСК
 task.spawn(function()
     task.wait(3)
     getgenv().CheckForAlts()
