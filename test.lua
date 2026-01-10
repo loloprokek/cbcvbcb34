@@ -134,7 +134,7 @@ local function ToggleBlackScreen(state)
             local LevelTxt = CreateStatLine("Level: ...", 45)
             local PrestigeTxt = CreateStatLine("Prestige: ...", 80)
 
-            StatsUpdateLoop = RunService.RenderStepped:Connect(function()
+            StatsUpdateLoop = RunService.Heartbeat:Connect(function()
                 pcall(function()
                     local stats = Players.LocalPlayer.PlayerStats
                     MoneyTxt.Text = "💰 Money: " .. stats.Money.Value .. " / " .. (getgenv().TargetMoney or 0)
@@ -198,22 +198,35 @@ UpdateSafeModeState = function()
                 end
             end
             
-            if setfpscap then setfpscap(30) end
-            
-            if blackScreenEnabled then
-                RunService:Set3dRenderingEnabled(false)
-                ToggleBlackScreen(true)
-            else
-                RunService:Set3dRenderingEnabled(true)
-                ToggleBlackScreen(false)
-            end
+            local cap = setfpscap or getgenv().setfpscap
+            if cap then cap(30) end
         else
-            RunService:Set3dRenderingEnabled(true)
-            ToggleBlackScreen(false)
             settings().Rendering.QualityLevel = 10
             Lighting.GlobalShadows = true
             Lighting.FogEnd = 100000
-            if setfpscap then setfpscap(60) end
+            
+            for _, v in pairs(Lighting:GetChildren()) do
+                if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") then
+                    v.Enabled = true
+                end
+            end
+            
+            local cap = setfpscap or getgenv().setfpscap
+            if cap then cap(60) end
+        end
+    end)
+
+    pcall(function()
+        if blackScreenEnabled then
+            if RunService.Set3dRenderingEnabled then
+                RunService:Set3dRenderingEnabled(false)
+            end
+            ToggleBlackScreen(true)
+        else
+            if RunService.Set3dRenderingEnabled then
+                RunService:Set3dRenderingEnabled(true)
+            end
+            ToggleBlackScreen(false)
         end
     end)
 end
