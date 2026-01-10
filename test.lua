@@ -1,7 +1,5 @@
--- [[ QUARK BETA FIX ]] --
 print("Quark: Script Starting...")
 
--- 1. СЕРВИСЫ И ПЕРЕМЕННЫЕ
 getgenv().TelegramBotToken = getgenv().TelegramBotToken or "" 
 getgenv().TelegramChatID = getgenv().TelegramChatID or ""
 
@@ -15,21 +13,19 @@ local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 
--- Безопасная загрузка VirtualUser (Anti-AFK)
 local VirtualUser = nil
 pcall(function() VirtualUser = game:GetService("VirtualUser") end)
 
 local LocalPlayer = Players.LocalPlayer
 
--- Anti-AFK
 if LocalPlayer then
     LocalPlayer.Idled:Connect(function()
         if VirtualUser then
             VirtualUser:CaptureController()
             VirtualUser:ClickButton2(Vector2.new())
         else
-            -- Фоллбэк если VirtualUser не работает
             pcall(function()
                 local vim = game:GetService("VirtualInputManager")
                 vim:SendMouseButtonEvent(0, 0, 0, true, game, 1)
@@ -40,7 +36,6 @@ if LocalPlayer then
     end)
 end
 
--- 2. СИСТЕМА HOP DATA (Перенесена наверх, чтобы работала проверка альтов)
 local PlaceID = game.PlaceId
 local serverHopData = {}
 local serverHopFile = pcall(function()
@@ -57,7 +52,6 @@ local function SaveHopData()
     end
 end
 
--- 3. ОСНОВНЫЕ ФУНКЦИИ
 local ConfigFileName = "QuarkBeta_Settings.json"
 local FarmModes = {
     "Standard (Money & Stop)",
@@ -68,7 +62,7 @@ local FarmModes = {
 
 local BlackScreenGui = nil
 local StatsUpdateLoop = nil
-local UpdateSafeModeState = nil -- Forward declaration
+local UpdateSafeModeState = nil 
 
 local function ToggleBlackScreen(state)
     if state then
@@ -184,6 +178,26 @@ UpdateSafeModeState = function()
     pcall(function()
         if safeModeEnabled then
             settings().Rendering.QualityLevel = 1
+            Lighting.GlobalShadows = false
+            Lighting.FogEnd = 9e9
+            Lighting.Brightness = 2
+            
+            pcall(function()
+                Workspace.Terrain.WaterWaveSize = 0
+                Workspace.Terrain.WaterWaveSpeed = 0
+                Workspace.Terrain.WaterReflectance = 0
+                Workspace.Terrain.WaterTransparency = 1
+                if setscriptable then
+                    setscriptable(Workspace.Terrain, "Decoration", false)
+                end
+            end)
+
+            for _, v in pairs(Lighting:GetChildren()) do
+                if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") then
+                    v.Enabled = false
+                end
+            end
+            
             if setfpscap then setfpscap(30) end
             
             if blackScreenEnabled then
@@ -197,6 +211,8 @@ UpdateSafeModeState = function()
             RunService:Set3dRenderingEnabled(true)
             ToggleBlackScreen(false)
             settings().Rendering.QualityLevel = 10
+            Lighting.GlobalShadows = true
+            Lighting.FogEnd = 100000
             if setfpscap then setfpscap(60) end
         end
     end)
@@ -220,6 +236,7 @@ local function SaveConfig()
         AltsList = getgenv().QuarkSettings.AltsList, 
         FarmModeIndex = getgenv().QuarkSettings.FarmModeIndex,
         AutoBuyLucky = getgenv().QuarkSettings.AutoBuyLucky,
+        StandFarmResourceCount = getgenv().QuarkSettings.StandFarmResourceCount, 
         ThemeColor = {
             R = getgenv().QuarkSettings.ThemeColor.R,
             G = getgenv().QuarkSettings.ThemeColor.G,
@@ -246,6 +263,7 @@ local function LoadConfig()
         TargetMoney = 0, 
         FarmModeIndex = 1,
         AutoBuyLucky = true,
+        StandFarmResourceCount = 5,
         AltsList = {},
         ThemeColor = Color3.fromRGB(15, 15, 20) 
     }
@@ -276,6 +294,7 @@ local function LoadConfig()
             Defaults.TargetMoney = result.TargetMoney or 300000
             Defaults.FarmModeIndex = result.FarmModeIndex or 1
             Defaults.AltsList = result.AltsList or {}
+            Defaults.StandFarmResourceCount = result.StandFarmResourceCount or 5 
             
             if result.AutoBuyLucky ~= nil then
                  Defaults.AutoBuyLucky = result.AutoBuyLucky
@@ -297,7 +316,6 @@ end
 
 LoadConfig()
 
--- 4. SETUP MENU
 if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "ВСТАВЬ") or getgenv().TelegramChatID == "" then
     if CoreGui:FindFirstChild("QuarkSetup") then CoreGui:FindFirstChild("QuarkSetup"):Destroy() end
 
@@ -420,7 +438,6 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
     repeat task.wait() until not waiting
 end
 
--- 5. ТЕЛЕГРАМ И ЛОГИ
 getgenv().QuarkLastUpdateId = getgenv().QuarkLastUpdateId or 0
 local lastUpdateId = getgenv().QuarkLastUpdateId 
 
@@ -468,10 +485,9 @@ local function SendTelegramMessage(text, msgType, replyMarkup)
     end
 end
 
-local Log -- Forward declare
+local Log 
 local LogContainer = nil
 
--- UI Building
 local DebugUI = {}
 local MainFrame = nil
 local UIGradient = nil
@@ -924,6 +940,9 @@ function DebugUI:Create()
         getgenv().QuarkSettings.TargetMoney = val
         getgenv().TargetMoney = val
     end)
+    CreateInputIn(FarmCat, "Res for Stand (Qty)", getgenv().QuarkSettings.StandFarmResourceCount, function(val)
+        getgenv().QuarkSettings.StandFarmResourceCount = val
+    end)
     
     local LuckyCat = CreateCategory("Lucky Farm Опции")
     CreateToggleIn(LuckyCat, "Авто-Покупка Стрел", getgenv().QuarkSettings.AutoBuyLucky, function(v) 
@@ -1037,7 +1056,6 @@ Log = function(text, msgType)
     end)
 end
 
--- 6. ЛОГИКА HOP И TELEPORT
 local function TPReturner()
     local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=' .. getgenv().sortOrder .. '&limit=100'
     if serverHopData.cursor and serverHopData.cursor ~= "" then
@@ -1090,7 +1108,6 @@ local function Teleport()
     end
 end
 
--- 7. ПРОВЕРКА АЛЬТОВ (Теперь безопасная)
 getgenv().CheckForAlts = function()
     local alts = getgenv().QuarkSettings.AltsList or {}
     if #alts == 0 then return end
@@ -1133,7 +1150,6 @@ Players.PlayerAdded:Connect(function(plr)
     getgenv().CheckForAlts()
 end)
 
--- 8. ОБРАБОТЧИК КОМАНД
 local function ClearWebhook()
     if getgenv().TelegramBotToken == "" then return end
     local url = "https://api.telegram.org/bot" .. getgenv().TelegramBotToken .. "/deleteWebhook"
@@ -1268,7 +1284,6 @@ local function HandleCommands()
     end)
 end
 
--- 9. ЗАПУСК ИГРОВОЙ ЛОГИКИ
 getgenv().TargetMoney = getgenv().QuarkSettings.TargetMoney 
 getgenv().ItemCollectionDelay = 3 
 getgenv().ServerFarmTime = 180 
@@ -2166,9 +2181,10 @@ if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
     elseif not getgenv().standList[LocalPlayer.PlayerStats.Stand.Value] and LocalPlayer.PlayerStats.Level.Value >= 3 and dontTPOnDeath then
         Log("Фарм ресурсов для стенда...", "warn")
         task.wait(5)
-        farmItem("Rokakaka", 5) 
-        farmItem("Mysterious Arrow", 5) 
-        if countItems("Mysterious Arrow") >= 5 and countItems("Mysterious Arrow") >= 5 then 
+        local needed = getgenv().QuarkSettings.StandFarmResourceCount
+        farmItem("Rokakaka", needed) 
+        farmItem("Mysterious Arrow", needed) 
+        if countItems("Mysterious Arrow") >= needed and countItems("Rokakaka") >= needed then 
             Log("Ресурсы готовы. Получаю стенд...", "action")
             dontTPOnDeath = false
             attemptStandFarm()
@@ -2352,7 +2368,6 @@ end)
 
 hookfunction(workspace.Raycast, function() return end)
 
--- ФИНАЛЬНЫЙ ЗАПУСК
 task.spawn(function()
     task.wait(3)
     getgenv().CheckForAlts()
