@@ -13,5 +13,10 @@
         "banned": false,
         "expires": 0,
         "note": "linercit"
+    },
+    "123456": {
+        "banned": false,
+        "expires": 0,
+        "note": "test"
     }
 }
