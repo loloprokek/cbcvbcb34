@@ -1378,6 +1378,8 @@ Log("Запуск основного скрипта...", "action")
 getgenv().standList =  {
     ["The World"] = true,
     ["Star Platinum"] = true,
+    ["Killer Queen"] = true,
+    ["Killer Queen: Bites the Dust"] = true,
     ["Star Platinum: The World"] = true,
     ["Crazy Diamond"] = true,
     ["King Crimson"] = true,
