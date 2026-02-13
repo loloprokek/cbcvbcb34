@@ -14,6 +14,11 @@
         "expires": 0,
         "note": "linercit"
     },
+    "skidisegs": {
+        "banned": false,
+        "expires": 0,
+        "note": "pindos"
+    },
     "123456": {
         "banned": false,
         "expires": 0,
