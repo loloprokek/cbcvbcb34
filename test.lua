@@ -1,7 +1,9 @@
 print("Quark: Script Starting...")
 
+-- Global Variables Init
 getgenv().TelegramBotToken = getgenv().TelegramBotToken or "" 
 getgenv().TelegramChatID = getgenv().TelegramChatID or ""
+getgenv().DiscordWebhookUrl = getgenv().DiscordWebhookUrl or ""
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -15,6 +17,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
+-- Virtual User Handling
 local VirtualUser = nil
 pcall(function() VirtualUser = game:GetService("VirtualUser") end)
 
@@ -64,6 +67,7 @@ local BlackScreenGui = nil
 local StatsUpdateLoop = nil
 local UpdateSafeModeState = nil 
 
+-- Black Screen Logic
 local function ToggleBlackScreen(state)
     if state then
         if not BlackScreenGui then
@@ -236,6 +240,8 @@ local function SaveConfig()
         TelegramEnabled = getgenv().QuarkSettings.TelegramEnabled,
         TelegramBotToken = getgenv().TelegramBotToken,
         TelegramChatID = getgenv().TelegramChatID,
+        DiscordEnabled = getgenv().QuarkSettings.DiscordEnabled,
+        DiscordWebhookUrl = getgenv().DiscordWebhookUrl,
         UILogging = getgenv().QuarkSettings.UILogging,
         NotifyInject = getgenv().QuarkSettings.NotifyInject,
         NotifyFinish = getgenv().QuarkSettings.NotifyFinish,
@@ -263,7 +269,8 @@ end
 
 local function LoadConfig()
     local Defaults = {
-        TelegramEnabled = true,     
+        TelegramEnabled = true,
+        DiscordEnabled = false,
         UILogging = true,           
         NotifyInject = true,    
         NotifyFinish = true,    
@@ -293,6 +300,12 @@ local function LoadConfig()
             end
             if result.TelegramChatID and result.TelegramChatID ~= "" then
                 getgenv().TelegramChatID = result.TelegramChatID
+            end
+            
+            -- Discord Load
+            if result.DiscordEnabled ~= nil then Defaults.DiscordEnabled = result.DiscordEnabled end
+            if result.DiscordWebhookUrl and result.DiscordWebhookUrl ~= "" then
+                getgenv().DiscordWebhookUrl = result.DiscordWebhookUrl
             end
             
             Defaults.UILogging = result.UILogging
@@ -329,7 +342,13 @@ end
 
 LoadConfig()
 
-if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "ВСТАВЬ") or getgenv().TelegramChatID == "" then
+-- Check if setup is needed (Missing Telegram OR Missing Discord based on preference)
+local needSetup = false
+if (getgenv().TelegramBotToken == "" and getgenv().DiscordWebhookUrl == "") then
+    needSetup = true
+end
+
+if needSetup then
     if CoreGui:FindFirstChild("QuarkSetup") then CoreGui:FindFirstChild("QuarkSetup"):Destroy() end
 
     local SetupScreen = Instance.new("ScreenGui")
@@ -338,8 +357,8 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
     SetupScreen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
    
     local Frame = Instance.new("Frame")
-    Frame.Size = UDim2.new(0, 420, 0, 280)
-    Frame.Position = UDim2.new(0.5, -210, 0.5, -140)
+    Frame.Size = UDim2.new(0, 420, 0, 320) -- Slightly taller for switcher
+    Frame.Position = UDim2.new(0.5, -210, 0.5, -160)
     Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
     Frame.BorderSizePixel = 0
     Frame.Parent = SetupScreen
@@ -366,8 +385,28 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
     Title.Font = Enum.Font.GothamBold
     Title.TextSize = 18
     
-    local function CreateNiceInput(placeholder, pos, titleText)
-        local Container = Instance.new("Frame", Frame)
+    -- Mode Switcher
+    local ModeFrame = Instance.new("Frame", Frame)
+    ModeFrame.Size = UDim2.new(0.9, 0, 0, 30)
+    ModeFrame.Position = UDim2.new(0.05, 0, 0, 45)
+    ModeFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    Instance.new("UICorner", ModeFrame).CornerRadius = UDim.new(0, 6)
+    
+    local ModeBtn = Instance.new("TextButton", ModeFrame)
+    ModeBtn.Size = UDim2.new(1, 0, 1, 0)
+    ModeBtn.BackgroundTransparency = 1
+    ModeBtn.Text = "Configuring: Telegram"
+    ModeBtn.TextColor3 = Color3.fromRGB(100, 200, 255)
+    ModeBtn.Font = Enum.Font.GothamBold
+    ModeBtn.TextSize = 14
+    
+    local ContentContainer = Instance.new("Frame", Frame)
+    ContentContainer.Size = UDim2.new(1, 0, 0, 180)
+    ContentContainer.Position = UDim2.new(0, 0, 0, 80)
+    ContentContainer.BackgroundTransparency = 1
+
+    local function CreateNiceInput(placeholder, pos, titleText, parent)
+        local Container = Instance.new("Frame", parent)
         Container.Size = UDim2.new(0.9, 0, 0, 55)
         Container.Position = UDim2.new(0.05, 0, 0, pos)
         Container.BackgroundTransparency = 1
@@ -403,13 +442,42 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
         
         return Box
     end
+
+    -- Telegram Fields
+    local TGFrame = Instance.new("Frame", ContentContainer)
+    TGFrame.Size = UDim2.new(1, 0, 1, 0)
+    TGFrame.BackgroundTransparency = 1
+    local TokenBox = CreateNiceInput("Paste Bot Token...", 0, "Telegram Bot Token", TGFrame)
+    local ChatIDBox = CreateNiceInput("Paste Chat ID...", 65, "Telegram Chat ID", TGFrame)
     
-    local TokenBox = CreateNiceInput("Введите Bot Token...", 60, "Telegram Bot Token")
-    local ChatIDBox = CreateNiceInput("Введите Chat ID...", 125, "Telegram Chat ID")
+    -- Discord Fields
+    local DSFrame = Instance.new("Frame", ContentContainer)
+    DSFrame.Size = UDim2.new(1, 0, 1, 0)
+    DSFrame.BackgroundTransparency = 1
+    DSFrame.Visible = false
+    local WebhookBox = CreateNiceInput("Paste Webhook URL...", 0, "Discord Webhook URL", DSFrame)
+    
+    local setupMode = "Telegram" -- or "Discord"
+    
+    ModeBtn.MouseButton1Click:Connect(function()
+        if setupMode == "Telegram" then
+            setupMode = "Discord"
+            ModeBtn.Text = "Configuring: Discord"
+            ModeBtn.TextColor3 = Color3.fromRGB(114, 137, 218)
+            TGFrame.Visible = false
+            DSFrame.Visible = true
+        else
+            setupMode = "Telegram"
+            ModeBtn.Text = "Configuring: Telegram"
+            ModeBtn.TextColor3 = Color3.fromRGB(100, 200, 255)
+            TGFrame.Visible = true
+            DSFrame.Visible = false
+        end
+    end)
    
     local SaveBtn = Instance.new("TextButton", Frame)
     SaveBtn.Size = UDim2.new(0.9, 0, 0, 40)
-    SaveBtn.Position = UDim2.new(0.05, 0, 0, 210)
+    SaveBtn.Position = UDim2.new(0.05, 0, 0, 260)
     SaveBtn.Text = "Save Config & Start"
     SaveBtn.BackgroundColor3 = Color3.fromRGB(60, 200, 100)
     SaveBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -423,9 +491,20 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
     local waiting = true
     
     SaveBtn.MouseButton1Click:Connect(function()
-        if TokenBox.Text ~= "" and ChatIDBox.Text ~= "" then
-            getgenv().TelegramBotToken = TokenBox.Text
-            getgenv().TelegramChatID = ChatIDBox.Text
+        local tgValid = (TokenBox.Text ~= "" and ChatIDBox.Text ~= "")
+        local dsValid = (WebhookBox.Text ~= "")
+        
+        if tgValid or dsValid then
+            if tgValid then
+                getgenv().TelegramBotToken = TokenBox.Text
+                getgenv().TelegramChatID = ChatIDBox.Text
+                getgenv().QuarkSettings.TelegramEnabled = true
+            end
+            if dsValid then
+                getgenv().DiscordWebhookUrl = WebhookBox.Text
+                getgenv().QuarkSettings.DiscordEnabled = true
+            end
+
             SaveConfig()
             
             TweenService:Create(Frame, TweenInfo.new(0.3), {Size = UDim2.new(0, 420, 0, 0), BackgroundTransparency = 1}):Play()
@@ -440,7 +519,7 @@ if getgenv().TelegramBotToken == "" or string.find(getgenv().TelegramBotToken, "
             SetupScreen:Destroy()
             waiting = false
         else
-            SaveBtn.Text = "❌ Заполните оба поля!"
+            SaveBtn.Text = "❌ Configure at least one method!"
             SaveBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
             task.wait(1)
             SaveBtn.Text = "Save Config & Start"
@@ -454,8 +533,54 @@ end
 getgenv().QuarkLastUpdateId = getgenv().QuarkLastUpdateId or 0
 local lastUpdateId = getgenv().QuarkLastUpdateId 
 
+-- Discord Notification Function
+local function SendDiscordMessage(text, msgType)
+    if not getgenv().QuarkSettings.DiscordEnabled then return end
+    if getgenv().DiscordWebhookUrl == "" then return end
+    
+    -- Restriction: Only Finish and Start (Inject) notifications
+    if msgType ~= "finish" and msgType ~= "inject" then return end
+
+    local color = 16777215 -- White default
+    if msgType == "finish" then color = 16776960 -- Gold
+    elseif msgType == "inject" then color = 65280 -- Green
+    end
+
+    local title = "Quark Beta Notification"
+    if msgType == "finish" then title = "🏆 QUARK FINISHED" end
+    if msgType == "inject" then title = "💉 QUARK STARTED" end
+
+    local embed = {
+        ["title"] = title,
+        ["description"] = text,
+        ["color"] = color,
+        ["footer"] = {
+            ["text"] = "Time: " .. os.date("%H:%M:%S")
+        }
+    }
+
+    local data = {
+        ["embeds"] = {embed}
+    }
+
+    local body = HttpService:JSONEncode(data)
+    local headers = {["Content-Type"] = "application/json"}
+    
+    local requestFunc = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+    if requestFunc then
+        task.spawn(function()
+            requestFunc({Url = getgenv().DiscordWebhookUrl, Method = "POST", Headers = headers, Body = body})
+        end)
+    end
+end
+
+-- Telegram Notification Function
 local function SendTelegramMessage(text, msgType, replyMarkup)
     local typeKey = msgType or "info"
+    
+    -- Also trigger Discord if applicable
+    SendDiscordMessage(text, typeKey)
+
     if not getgenv().QuarkSettings.TelegramEnabled then return end
     
     local allowSend = false
@@ -662,8 +787,8 @@ function DebugUI:Create()
         return Btn
     end
 
-    local LogTabBtn = CreateTabButton("Логи", true)
-    local SetTabBtn = CreateTabButton("Настройки", false)
+    local LogTabBtn = CreateTabButton("Logs", true)
+    local SetTabBtn = CreateTabButton("Settings", false)
 
     LogTabBtn.MouseButton1Click:Connect(function()
         LogsPage.Visible = true
@@ -941,15 +1066,16 @@ function DebugUI:Create()
         end)
     end
     
-    local MainCat = CreateCategory("Основные Настройки")
-    CreateToggleIn(MainCat, "Переключатель логов-управления Telegram", getgenv().QuarkSettings.TelegramEnabled, function(v) getgenv().QuarkSettings.TelegramEnabled = v end)
-    CreateToggleIn(MainCat, "Логи в Меню (UI)", getgenv().QuarkSettings.UILogging, function(v) getgenv().QuarkSettings.UILogging = v end)
+    local MainCat = CreateCategory("Main Settings")
+    CreateToggleIn(MainCat, "Telegram Logs/Control Switch", getgenv().QuarkSettings.TelegramEnabled, function(v) getgenv().QuarkSettings.TelegramEnabled = v end)
+    CreateToggleIn(MainCat, "Discord Logs (Start/Finish)", getgenv().QuarkSettings.DiscordEnabled, function(v) getgenv().QuarkSettings.DiscordEnabled = v end)
+    CreateToggleIn(MainCat, "UI Logs", getgenv().QuarkSettings.UILogging, function(v) getgenv().QuarkSettings.UILogging = v end)
 
-    local FarmCat = CreateCategory("Настройки Фарма")
-    CreateModeSelector(FarmCat, "Режим Фарма", FarmModes, getgenv().QuarkSettings.FarmModeIndex, function(idx)
+    local FarmCat = CreateCategory("Farm Settings")
+    CreateModeSelector(FarmCat, "Farm Mode", FarmModes, getgenv().QuarkSettings.FarmModeIndex, function(idx)
         getgenv().QuarkSettings.FarmModeIndex = idx
     end)
-    CreateInputIn(FarmCat, "Деньги(после 3p 50l)", getgenv().QuarkSettings.TargetMoney, function(val)
+    CreateInputIn(FarmCat, "Money (after 3p 50l)", getgenv().QuarkSettings.TargetMoney, function(val)
         getgenv().QuarkSettings.TargetMoney = val
         getgenv().TargetMoney = val
     end)
@@ -957,39 +1083,39 @@ function DebugUI:Create()
         getgenv().QuarkSettings.StandFarmResourceCount = val
     end)
     
-    local LuckyCat = CreateCategory("Lucky Farm Опции")
-    CreateToggleIn(LuckyCat, "Авто-Покупка Стрел", getgenv().QuarkSettings.AutoBuyLucky, function(v) 
+    local LuckyCat = CreateCategory("Lucky Farm Options")
+    CreateToggleIn(LuckyCat, "Auto-Buy Arrows", getgenv().QuarkSettings.AutoBuyLucky, function(v) 
         getgenv().QuarkSettings.AutoBuyLucky = v 
         SaveConfig()
     end)
     
-    local VisualCat = CreateCategory("Внешний вид (UI)")
-    CreateToggleIn(VisualCat, "Эффект Liquid Glass", getgenv().QuarkSettings.GlassEffect, function(v) 
+    local VisualCat = CreateCategory("Visuals (UI)")
+    CreateToggleIn(VisualCat, "Liquid Glass Effect", getgenv().QuarkSettings.GlassEffect, function(v) 
         getgenv().QuarkSettings.GlassEffect = v 
         UpdateGlassEffect()
     end)
-    CreateSliderIn(VisualCat, "Прозрачность", function(val)
+    CreateSliderIn(VisualCat, "Transparency", function(val)
         getgenv().QuarkSettings.Transparency = val
         if not getgenv().QuarkSettings.GlassEffect then
             MainFrame.BackgroundTransparency = val
         end
     end)
 
-    local SafeModeCat = CreateCategory("Оптимизация")
-    CreateToggleIn(SafeModeCat, "Оптимизация (FPS/GPU)", getgenv().QuarkSettings.SafeMode, function(v)
+    local SafeModeCat = CreateCategory("Optimization")
+    CreateToggleIn(SafeModeCat, "Optimization (FPS/GPU)", getgenv().QuarkSettings.SafeMode, function(v)
         getgenv().QuarkSettings.SafeMode = v
         UpdateSafeModeState()
     end)
-    CreateToggleIn(SafeModeCat, "  Черный экран (3D Off)", getgenv().QuarkSettings.BlackScreen, function(v)
+    CreateToggleIn(SafeModeCat, "  Black Screen (3D Off)", getgenv().QuarkSettings.BlackScreen, function(v)
         getgenv().QuarkSettings.BlackScreen = v
         UpdateSafeModeState()
     end)
     
-    local FiltersCat = CreateCategory("Фильтры Логов")
-    CreateToggleIn(FiltersCat, "UI: Успех", getgenv().QuarkSettings.Filters.success, function(v) getgenv().QuarkSettings.Filters.success = v end)
-    CreateToggleIn(FiltersCat, "UI: Ошибки", getgenv().QuarkSettings.Filters.error, function(v) getgenv().QuarkSettings.Filters.error = v end)
-    CreateToggleIn(FiltersCat, "TG: Успех (Квесты)", getgenv().QuarkSettings.TGFilters.success, function(v) getgenv().QuarkSettings.TGFilters.success = v end)
-    CreateToggleIn(FiltersCat, "TG: Важное (Кик)", getgenv().QuarkSettings.TGFilters.error, function(v) getgenv().QuarkSettings.TGFilters.error = v end)
+    local FiltersCat = CreateCategory("Log Filters")
+    CreateToggleIn(FiltersCat, "UI: Success", getgenv().QuarkSettings.Filters.success, function(v) getgenv().QuarkSettings.Filters.success = v end)
+    CreateToggleIn(FiltersCat, "UI: Errors", getgenv().QuarkSettings.Filters.error, function(v) getgenv().QuarkSettings.Filters.error = v end)
+    CreateToggleIn(FiltersCat, "TG: Success (Quests)", getgenv().QuarkSettings.TGFilters.success, function(v) getgenv().QuarkSettings.TGFilters.success = v end)
+    CreateToggleIn(FiltersCat, "TG: Important (Kick)", getgenv().QuarkSettings.TGFilters.error, function(v) getgenv().QuarkSettings.TGFilters.error = v end)
 
     local CreditLabel = Instance.new("TextLabel")
     CreditLabel.Parent = SettingsPage
@@ -1080,7 +1206,7 @@ local function TPReturner()
     end)
 
     if not success or not Site or not Site.data then
-        Log("Ошибка Server List. Пробуем еще...", "warn") 
+        Log("Server List Error. Retrying...", "warn") 
         serverHopData.cursor = "" 
         return
     end
@@ -1094,7 +1220,7 @@ local function TPReturner()
             serverHopData.cursor = nextPageCursor 
             SaveHopData()
             
-            Log("HOP: Новый сервер...", "action")
+            Log("HOP: New Server...", "action")
             TeleportService:TeleportToPlaceInstance(PlaceID, ID, LocalPlayer)
             return
        end
@@ -1103,7 +1229,7 @@ local function TPReturner()
     if nextPageCursor and nextPageCursor ~= "null" and nextPageCursor ~= nil then
         serverHopData.cursor = nextPageCursor
     else
-        Log("Сервера закончились, сброс.", "info")
+        Log("Servers ended, resetting.", "info")
         serverHopData.cursor = ""
         serverHopData.visited = {}
     end
@@ -1111,7 +1237,7 @@ local function TPReturner()
 end
 
 local function Teleport()
-    Log("Инициирую Server Hop...", "action")
+    Log("Initiating Server Hop...", "action")
     pcall(function() game:GetService("GuiService"):ClearError() end)
     
     while task.wait(1) do 
@@ -1142,7 +1268,7 @@ getgenv().CheckForAlts = function()
     end
 
     if foundAlt then
-        local msg = "⚠️ НА СЕРВЕРЕ АЛЬТ: " .. foundName .. ". Блокирую сервер и меняю..."
+        local msg = "⚠️ ALT DETECTED ON SERVER: " .. foundName .. ". Blocking server and changing..."
         Log(msg, "error")
         SendTelegramMessage(msg, "error")
 
@@ -1154,7 +1280,7 @@ getgenv().CheckForAlts = function()
         
         Teleport()
     else
-        Log("Сервер чист от альтов.", "success")
+        Log("Server is clear of alts.", "success")
     end
 end
 
@@ -1176,7 +1302,7 @@ local function SendControlPanel()
     local keyboard = {
         inline_keyboard = {
             {
-                {text = "📊 Статистика", callback_data = "/stats"},
+                {text = "📊 Statistics", callback_data = "/stats"},
                 {text = "🔄 Rejoin", callback_data = "/rejoin"}
             },
             {
@@ -1188,7 +1314,7 @@ local function SendControlPanel()
             }
         }
     }
-    SendTelegramMessage("🎛 <b>Панель управления Quark:</b>\nВыберите действие:", "manual_response", keyboard)
+    SendTelegramMessage("🎛 <b>Quark Control Panel:</b>\nChoose action:", "manual_response", keyboard)
 end
 
 local isListening = false
@@ -1230,7 +1356,7 @@ local function HandleCommands()
                                 
                                 if text ~= "" then
                                     if Log then Log("[TG] Msg: " .. text, "tg") end
-                                    print("Quark: Команда: " .. text)
+                                    print("Quark: Command: " .. text)
                                     
                                     if isCallback then
                                         local ansUrl = "https://api.telegram.org/bot" .. getgenv().TelegramBotToken .. "/answerCallbackQuery"
@@ -1238,23 +1364,23 @@ local function HandleCommands()
                                     end
 
                                     if text == "/ping" then
-                                        SendTelegramMessage("🏓 Pong! Связь стабильна.\nСервер: " .. game.PlaceId, "manual_response")
+                                        SendTelegramMessage("🏓 Pong! Connection stable.\nServer: " .. game.PlaceId, "manual_response")
                                     
                                     elseif text == "/help" or text == "/start" then
                                         SendControlPanel()
                                         
                                     elseif text == "/stats" then
                                         local stats = Players.LocalPlayer.PlayerStats
-                                        local msg = "📊 <b>Статистика Quark:</b>\n" ..
-                                                    "👤 <b>Ник:</b> " .. Players.LocalPlayer.Name .. "\n" ..
-                                                    "💰 <b>Деньги:</b> " .. stats.Money.Value .. " / " .. getgenv().TargetMoney .. "\n" ..
-                                                    "⭐ <b>Уровень:</b> " .. stats.Level.Value .. "\n" ..
-                                                    "🏆 <b>Престиж:</b> " .. stats.Prestige.Value .. "\n" ..
-                                                    "🕹️ <b>Режим:</b> " .. FarmModes[getgenv().QuarkSettings.FarmModeIndex]
+                                        local msg = "📊 <b>Quark Stats:</b>\n" ..
+                                                    "👤 <b>Nick:</b> " .. Players.LocalPlayer.Name .. "\n" ..
+                                                    "💰 <b>Money:</b> " .. stats.Money.Value .. " / " .. getgenv().TargetMoney .. "\n" ..
+                                                    "⭐ <b>Level:</b> " .. stats.Level.Value .. "\n" ..
+                                                    "🏆 <b>Prestige:</b> " .. stats.Prestige.Value .. "\n" ..
+                                                    "🕹️ <b>Mode:</b> " .. FarmModes[getgenv().QuarkSettings.FarmModeIndex]
                                         SendTelegramMessage(msg, "manual_response")
                                         
                                     elseif string.find(text, "/setalts") then
-                                        Log("Обработка команды /setalts...", "action")
+                                        Log("Processing /setalts...", "action")
                                         local args = {}
                                         for word in string.gmatch(text, "%S+") do
                                             if word ~= "/setalts" then
@@ -1266,22 +1392,22 @@ local function HandleCommands()
                                         SaveConfig()
                                         
                                         local listStr = table.concat(args, ", ")
-                                        if listStr == "" then listStr = "(пусто)" end
+                                        if listStr == "" then listStr = "(empty)" end
                                         
-                                        SendTelegramMessage("✅ Список альтов обновлен: " .. listStr, "action")
-                                        Log("Альты установлены: " .. listStr, "success")
+                                        SendTelegramMessage("✅ Alts list updated: " .. listStr, "action")
+                                        Log("Alts set: " .. listStr, "success")
                                         
                                         if getgenv().CheckForAlts then
                                             getgenv().CheckForAlts()
                                         end
 
                                     elseif text == "/rejoin" then
-                                        SendTelegramMessage("🔄 Команда Rejoin получена. Перезапуск...", "action")
+                                        SendTelegramMessage("🔄 Rejoin command received. Restarting...", "action")
                                         TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
                                         return 
                  
                                     elseif text == "/stop" then
-                                        SendTelegramMessage("🛑 Команда Stop получена. Кик...", "error")
+                                        SendTelegramMessage("🛑 Stop command received. Kicking...", "error")
                                         Players.LocalPlayer:Kick("Stopped via Telegram (/stop)")
                                         return 
                                     end
@@ -1301,7 +1427,7 @@ getgenv().TargetMoney = getgenv().QuarkSettings.TargetMoney
 getgenv().ItemCollectionDelay = 3 
 getgenv().ServerFarmTime = 180 
 
-Log("Инициализация Quark Beta...", "action")
+Log("Initializing Quark Beta...", "action")
 
 local Character
 local RemoteEvent
@@ -1318,35 +1444,35 @@ while true do
             if foundRE and foundRF then
                 RemoteEvent = foundRE
                 RemoteFunction = foundRF
-                Log("Персонаж и Remotes найдены.", "success")
+                Log("Character and Remotes found.", "success")
                 
                 if getgenv().QuarkSettings.NotifyInject then
                     local userFileName = "QuarkBeta_"..LocalPlayer.Name..".txt"
                     if not isfile(userFileName) then
-                        SendTelegramMessage("🆕 Новый аккаунт инициализирован: " .. LocalPlayer.Name, "inject")
+                        SendTelegramMessage("🆕 New account initialized: " .. LocalPlayer.Name, "inject")
                         SendControlPanel()
                     else
-                        Log("Успешная инициализация. Аккаунт: " .. LocalPlayer.Name, "info")
+                        Log("Successful initialization. Account: " .. LocalPlayer.Name, "info")
                     end
                 end
                 
                 HandleCommands() 
                 break 
             else
-                print("Quark: Ждем RemoteEvent/RemoteFunction...")
+                print("Quark: Waiting for RemoteEvent/RemoteFunction...")
             end
         else
-            print("Quark: Ждем Character...")
+            print("Quark: Waiting for Character...")
         end
     else
-        print("Quark: Ждем LocalPlayer...")
+        print("Quark: Waiting for LocalPlayer...")
     end
     task.wait(1)
 end
 
-print("Quark: Обход экрана загрузки...")
+print("Quark: Bypassing loading screen...")
 if not LocalPlayer.PlayerGui:FindFirstChild("HUD") then
-    print("Quark: Форсируем HUD...")
+    print("Quark: Forcing HUD...")
     local HUD = game:GetService("ReplicatedStorage").Objects.HUD:Clone()
     HUD.Parent = LocalPlayer.PlayerGui
 end
@@ -1360,20 +1486,20 @@ if LocalPlayer.PlayerGui:FindFirstChild("LoadingScreen") then
     LocalPlayer.PlayerGui:FindFirstChild("LoadingScreen"):Destroy()
 end
 
-print("Quark: Ожидание 5 секунд перед сбросом...")
+print("Quark: Waiting 5 seconds before reset...")
 task.wait(5)
 
-print("Quark: Сброс персонажа для синхронизации...")
+print("Quark: Resetting character for sync...")
 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
     LocalPlayer.Character.Humanoid.Health = 0
 else
-    print("Quark: Не удалось найти Humanoid для сброса.")
+    print("Quark: Could not find Humanoid to reset.")
 end
 
-print("Quark: Ожидание 10 секунд...")
+print("Quark: Waiting 10 seconds...")
 task.wait(10) 
 
-Log("Запуск основного скрипта...", "action")
+Log("Starting main script...", "action")
 
 getgenv().standList =  {
     ["The World"] = true,
@@ -1417,7 +1543,7 @@ end
 local function ForceRejoin(reason)
     if getgenv().IsRejoining then return end
     getgenv().IsRejoining = true
-    local msg = "⚠️ KICK/CRASH DETECTED: " .. (game.Players.LocalPlayer.Name or "Unknown") .. "\nПричина: " .. (reason or "Неизвестна")
+    local msg = "⚠️ KICK/CRASH DETECTED: " .. (game.Players.LocalPlayer.Name or "Unknown") .. "\nReason: " .. (reason or "Unknown")
     if Log then Log(msg, "error") end
     
     task.spawn(function()
@@ -1451,7 +1577,7 @@ game:GetService("CoreGui").DescendantAdded:Connect(function(child)
 end)
 
 game:GetService("NetworkClient").ChildRemoved:Connect(function()
-    ForceRejoin("Потеря соединения (NetworkClient Disconnected)")
+    ForceRejoin("Connection Lost (NetworkClient Disconnected)")
 end)
 
 TeleportService.TeleportInitFailed:Connect(function(player, result, errorMessage)
@@ -1476,10 +1602,10 @@ if hookmetamethod and newcclosure then
 end
 
 local function StartLuckyFarmLoop()
-    Log("🌟 АКТИВАЦИЯ РЕЖИМА LUCKY FARM (V3 FIX) 🌟", "lucky")
+    Log("🌟 ACTIVATING LUCKY FARM MODE (V3 FIX) 🌟", "lucky")
     
     if not getgenv().QuarkSettings.SafeMode then
-        Log("Совет: Включите Safe Mode в настройках для лучшего FPS!", "warn")
+        Log("Tip: Enable Safe Mode in settings for better FPS!", "warn")
     end
 
     local SellItemsList = {
@@ -1521,7 +1647,7 @@ local function StartLuckyFarmLoop()
                                 end
                             end
                             if string.find(lowerText, "lucky") or string.find(lowerText, "arrow") then
-                                Log("Проверка GUI: найден текст '" .. obj.Text .. "' (цвет: " .. tostring(obj.TextColor3) .. ")", "info")
+                                Log("GUI Check: found text '" .. obj.Text .. "' (color: " .. tostring(obj.TextColor3) .. ")", "info")
                             end
                         end
                     end
@@ -1529,7 +1655,7 @@ local function StartLuckyFarmLoop()
             end
         end)
         if foundText then
-            Log("ДЕТЕКТ СРАБОТАЛ! Найден текст лимита: " .. foundText, "success")
+            Log("DETECTED! Limit message found: " .. foundText, "success")
         end
         return foundText ~= nil, foundText
     end
@@ -1575,24 +1701,24 @@ local function StartLuckyFarmLoop()
 
     while true do
         UpdateItems()
-        Log("Lucky Farm: Предметов: " .. #SpawnedItems .. " | Проверка на лимит-сообщение...", "lucky")
+        Log("Lucky Farm: Items: " .. #SpawnedItems .. " | Checking for limit message...", "lucky")
 
         local detected, fullText = DetectLimitMessage()
         if not limitNotified and detected then
             local luckyCount = CountLuckyArrows()
-            local duration = "Неизвестно"
+            local duration = "Unknown"
             if typeof(GetFarmDuration) == "function" then
                 duration = GetFarmDuration()
             end
 
-            local finishMsg = "🏹 LUCKY FARM ЗАВЕРШЁН! (Лимит 10 Lucky Arrow достигнут)\n" ..
-                              "Аккаунт: " .. LocalPlayer.Name .. "\n" ..
-                              "Сообщение: " .. (fullText or "Лимит инвентаря") .. "\n" ..
+            local finishMsg = "🏹 LUCKY FARM FINISHED! (10 Lucky Arrow Limit Reached)\n" ..
+                              "Account: " .. LocalPlayer.Name .. "\n" ..
+                              "Message: " .. (fullText or "Inventory Limit") .. "\n" ..
                               "🔢 Lucky Arrows: " .. luckyCount .. "/10\n" ..
-                              "⏱ Время фарма: " .. duration
+                              "⏱ Farm Time: " .. duration
 
             SendTelegramMessage(finishMsg, "finish")
-            Log("ФАРМ ОКОНЧЕН! 10 Lucky Arrow в инвентаре.", "success")
+            Log("FARM ENDED! 10 Lucky Arrows in inventory.", "success")
             limitNotified = true
             while true do task.wait(999999) end
         end
@@ -1624,7 +1750,7 @@ local function StartLuckyFarmLoop()
         
         TeleportTo(CFrame.new(978, -42, -49))
 
-        Log("Lucky Farm: Продажа мусора...", "lucky")
+        Log("Lucky Farm: Selling junk...", "lucky")
         for itemName, shouldSell in pairs(SellItemsList) do
             if shouldSell and LocalPlayer.Backpack:FindFirstChild(itemName) then
                 pcall(function()
@@ -1640,17 +1766,17 @@ local function StartLuckyFarmLoop()
         if getgenv().QuarkSettings.AutoBuyLucky and not HasLuckyArrows() and not limitNotified then
             local money = LocalPlayer.PlayerStats.Money.Value
             if money >= 75000 then
-                Log("Lucky Farm: Покупка Lucky Arrow...", "lucky")
+                Log("Lucky Farm: Buying Lucky Arrow...", "lucky")
                 LocalPlayer.Character.RemoteEvent:FireServer("PurchaseShopItem", {["ItemName"] = "1x Lucky Arrow"})
                 task.wait(ActionDelay + 0.5)
             else
-                Log("Lucky Farm: Недостаточно денег ("..money.."$)", "warn")
+                Log("Lucky Farm: Not enough money ("..money.."$)", "warn")
             end
         end
 
         cycles = cycles + 1
         if cycles >= maxCycles then
-            Log("Lucky Farm: Смена сервера...", "action")
+            Log("Lucky Farm: Changing server...", "action")
             Teleport()
         end
         task.wait(2)
@@ -1682,8 +1808,8 @@ if LocalPlayer.PlayerStats.Level.Value == 50 then
              if getgenv().QuarkSettings.NotifyFinish then
                 local duration = GetFarmDuration()
                 local msg = "🎉 STANDARD FINISH: " .. LocalPlayer.Name .. 
-                            "\n💰 Баланс: " .. money ..
-                            "\n⏱ Время: " .. duration
+                            "\n💰 Balance: " .. money ..
+                            "\n⏱ Time: " .. duration
                 SendTelegramMessage(msg, "finish") 
                 Log(msg, "success")
             end
@@ -1762,11 +1888,11 @@ local function countItems(itemName)
 end
 
 local function useItem(aItem, amount)
-    Log("Использую предмет: " .. aItem, "action")
+    Log("Using item: " .. aItem, "action")
     local item = LocalPlayer.Backpack:WaitForChild(aItem, 5)
 
     if not item then
-        Log("Предмет не найден: " .. aItem, "warn")
+        Log("Item not found: " .. aItem, "warn")
         Teleport()
     end
 
@@ -1787,22 +1913,22 @@ local function attemptStandFarm()
     LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(500, 2010, 500)
     
     if LocalPlayer.PlayerStats.Stand.Value == "None" then
-        Log("Стенда нет. Использую Стрелу...", "action")
+        Log("No Stand. Using Arrow...", "action")
         useItem("Mysterious Arrow", "II")
         repeat task.wait() until LocalPlayer.PlayerStats.Stand.Value ~= "None"
 
         if not getgenv().standList[LocalPlayer.PlayerStats.Stand.Value] then
-            Log("Стенд " .. LocalPlayer.PlayerStats.Stand.Value .. " не нужнен. Roka...", "info")
+            Log("Stand " .. LocalPlayer.PlayerStats.Stand.Value .. " unwanted. Roka...", "info")
             useItem("Rokakaka", "II")
         elseif getgenv().standList[LocalPlayer.PlayerStats.Stand.Value] then
-            local msg = "ПОЛУЧЕН СТЕНД: ".. LocalPlayer.PlayerStats.Stand.Value
+            local msg = "GOT STAND: ".. LocalPlayer.PlayerStats.Stand.Value
             Log(msg, "success")
             dontTPOnDeath = true
             Teleport()
         end
 
     elseif not getgenv().standList[LocalPlayer.PlayerStats.Stand.Value] then
-        Log("Сброс текущего стенда " .. LocalPlayer.PlayerStats.Stand.Value .. "...", "info")
+        Log("Resetting current stand " .. LocalPlayer.PlayerStats.Stand.Value .. "...", "info")
         useItem("Rokakaka", "II")
     end
 end
@@ -1872,7 +1998,7 @@ local function farmItem(itemName, amount)
 
     for itemIndex, _ in pairs(items["Position"]) do
         if countItems(itemName) == amount or amountFirst then
-            Log("Собрано " .. itemName, "success")
+            Log("Collected " .. itemName, "success")
             break
         else
             getitem(items, itemIndex)
@@ -1903,14 +2029,14 @@ local function storyDialogue()
 end
 
 local function killNPC(npcName, playerDistance, dontDestroyOnKill, extraParameters)
- Log("Атака цели: " .. npcName, "action")
+ Log("Attacking target: " .. npcName, "action")
  local NPC = workspace.Living:WaitForChild(npcName,getgenv().NPCTimeOut)
  local beingTargeted = true
     local doneKilled = false
  local deadCheck
 
     if not NPC then
-        Log("NPC " .. npcName .. " не найден, телепорт.", "warn")
+        Log("NPC " .. npcName .. " not found, teleporting.", "warn")
         Teleport()
     end
 
@@ -2005,7 +2131,7 @@ end
 
 local function checkPrestige(level, prestige)
     if (level == 35 and prestige == 0) or (level == 40 and prestige == 1) or (level == 45 and prestige == 2) then
-        local msg = "🌟 ПРЕСТИЖ ВЗЯТ!"
+        local msg = "🌟 PRESTIGE TAKEN!"
         Log(msg, "success")
         endDialogue("Prestige", "Dialogue2", "Option1")
         return true
@@ -2031,7 +2157,7 @@ local function allocateSkills()
 end
 
 local function autoStory()
-    Log("Запуск логики AutoStory...", "action")
+    Log("Starting AutoStory logic...", "action")
     local questPanel = LocalPlayer.PlayerGui.HUD.Main.Frames.Quest.Quests
     local repeatCount = 0
     allocateSkills()
@@ -2056,7 +2182,7 @@ local function autoStory()
             if money >= getgenv().TargetMoney then
                 if getgenv().QuarkSettings.NotifyFinish then
                     local duration = GetFarmDuration()
-                    local msg = "🎉 STANDARD FINISH: " .. money .. "\n⏱ Время фарма: " .. duration
+                    local msg = "🎉 STANDARD FINISH: " .. money .. "\n⏱ Farm Time: " .. duration
                     SendTelegramMessage(msg, "finish") 
                     Log(msg, "success")
                 end
@@ -2072,7 +2198,7 @@ local function autoStory()
         end
 
         if (mode == 1 or mode == 2) and money < getgenv().TargetMoney then
-            Log("Lvl 50. Фарм Вампиров до: " .. getgenv().TargetMoney, "info")
+            Log("Lvl 50. Farming Vampires until: " .. getgenv().TargetMoney, "info")
             local function vampire()
                 pcall(function() 
                     if workspace.Living:FindFirstChild("Vampire") and workspace.Living:FindFirstChild("Vampire"):FindFirstChild("HumanoidRootPart") then
@@ -2108,13 +2234,13 @@ local function autoStory()
         end
         
         if not LocalPlayer.Backpack:FindFirstChild("Zeppeli's Hat") then
-            Log("Фарм Caesar's Headband...", "info")
+            Log("Farming Caesar's Headband...", "info")
             task.wait(1) 
             farmItem("Zeppeli's Hat", 1)
         end
 
         if LocalPlayer.PlayerStats.Money.Value <= 10000 then
-            Log("Нужно $10000 для Hamon. Фарм денег...", "warn")
+            Log("Need $10000 for Hamon. Farming money...", "warn")
             collectAndSell("Mysterious Arrow", 5)
             collectAndSell("Rokakaka", 5)
             collectAndSell("Diamond", 3)
@@ -2129,7 +2255,7 @@ local function autoStory()
         end
 
         if LocalPlayer.Backpack:FindFirstChild("Zeppeli's Hat") then
-            Log("Покупка Hamon...", "action")
+            Log("Buying Hamon...", "action")
           
             LocalPlayer.Character.Humanoid:EquipTool(LocalPlayer.Backpack:FindFirstChild("Zeppeli's Hat"))
             game.Players.LocalPlayer.Character.RemoteEvent:FireServer("PromptTriggered", game.ReplicatedStorage.NewDialogue:FindFirstChild("Lisa Lisa"))
@@ -2167,7 +2293,7 @@ local function autoStory()
   
     while #questPanel:GetChildren() < 2 and repeatCount < 1000 do
         if not questPanel:FindFirstChild("Take down 3 vampires") then
-            Log("Квест завершен (".. math.floor(tick() - lastTick) .. "с)", "success")
+            Log("Quest completed (".. math.floor(tick() - lastTick) .. "s)", "success")
             lastTick = tick()
             endDialogue("William Zeppeli", "Dialogue4", "Option1")
         end
@@ -2192,13 +2318,13 @@ if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
         end
 
     elseif not getgenv().standList[LocalPlayer.PlayerStats.Stand.Value] and LocalPlayer.PlayerStats.Level.Value >= 3 and dontTPOnDeath then
-        Log("Фарм ресурсов для стенда...", "warn")
+        Log("Farming resources for Stand...", "warn")
         task.wait(5)
         local needed = getgenv().QuarkSettings.StandFarmResourceCount
         farmItem("Rokakaka", needed) 
         farmItem("Mysterious Arrow", needed) 
         if countItems("Mysterious Arrow") >= needed and countItems("Rokakaka") >= needed then 
-            Log("Ресурсы готовы. Получаю стенд...", "action")
+            Log("Resources ready. Getting stand...", "action")
             dontTPOnDeath = false
             attemptStandFarm()
         else
@@ -2226,9 +2352,9 @@ if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
         end
 
     elseif questPanel:FindFirstChild("Collect $5,000 To Cover For Popo's Real Fortune") then
-        Log("Квест на $5000. Баланс: " .. LocalPlayer.PlayerStats.Money.Value, "info")
+        Log("Quest for $5000. Balance: " .. LocalPlayer.PlayerStats.Money.Value, "info")
         if LocalPlayer.PlayerStats.Money.Value < 5000 then
-            Log("Фарм денег...", "action")
+            Log("Farming money...", "action")
             local function collectAndSell(toolName, amount)
                 if countItems(toolName) <= amount then
                     farmItem(toolName, amount)
@@ -2306,7 +2432,7 @@ if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
             LocalPlayer.Character.PrimaryPart.CFrame = workspace.Living:FindFirstChild("Vampire").HumanoidRootPart.CFrame - Vector3.new(0, 15, 0)
             if not questPanel:FindFirstChild("Take down 3 vampires") then
                 if (tick() - lastTick) >= 5 then
-                    Log("Вампир убит.", "success")
+                    Log("Vampire killed.", "success")
                     lastTick = tick()
                 end
                 endDialogue("William Zeppeli", "Dialogue4", "Option1")
@@ -2319,17 +2445,17 @@ if questPanel:FindFirstChild("Help Giorno by Defeating Security Guards") then
             Character.FocusCam:Destroy()
         end
     else
-        Log("autoStory: Нет известных квестов. Lvl: " .. LocalPlayer.PlayerStats.Level.Value, "warn")
+        Log("autoStory: No known quests. Lvl: " .. LocalPlayer.PlayerStats.Level.Value, "warn")
         if LocalPlayer.PlayerStats.Level.Value >= 25 and LocalPlayer.PlayerStats.Level.Value ~= 50 then
-            Log("FIX: Lvl >= 25. Принудительно берем квест у William Zeppeli...", "action")
+            Log("FIX: Lvl >= 25. Forcing quest from William Zeppeli...", "action")
             endDialogue("William Zeppeli", "Dialogue4", "Option1")
-            Log("FIX: Прокликиваем storyDialogue() для сброса...", "info")
+            Log("FIX: Clicking through storyDialogue() to reset...", "info")
             storyDialogue()
-            Log("FIX: Ожидание 1 сек и повтор autoStory()...", "info")
+            Log("FIX: Waiting 1 sec and retrying autoStory()...", "info")
             task.wait(1)
             autoStory()
         else
-            Log("FIX: Lvl < 25. Прокликиваем storyDialogue() и повторяем...", "warn")
+            Log("FIX: Lvl < 25. Clicking through storyDialogue() and retrying...", "warn")
             storyDialogue()
             task.wait(1)
             autoStory()
@@ -2340,7 +2466,7 @@ end
 task.spawn(function()
     while task.wait(3) do
         if checkPrestige(LocalPlayer.PlayerStats.Level.Value, LocalPlayer.PlayerStats.Prestige.Value) then
-            Log("Престиж! HOP...", "success")
+            Log("Prestige! HOP...", "success")
             Teleport()
         elseif LocalPlayer.PlayerStats.Level.Value == 50 then
             if Character:FindFirstChild("FocusCam") then
@@ -2354,7 +2480,7 @@ end)
 game.Workspace.Living.ChildAdded:Connect(function(character)
     if character.Name == LocalPlayer.Name then
         if LocalPlayer.PlayerStats.Level.Value == 50 and LocalPlayer.PlayerStats.Money.Value < getgenv().TargetMoney then
-            Log("Смерть на 50 ур. Продолжаю.", "warn")
+            Log("Death at lvl 50. Continuing.", "warn")
         elseif LocalPlayer.PlayerStats.Level.Value == 50 then
             if getgenv().QuarkSettings.FarmModeIndex == 2 or getgenv().QuarkSettings.FarmModeIndex == 3 then
                 task.wait(3)
