@@ -4,17 +4,17 @@
         "expires": 0,
         "note": "d"
     },
-    "123123": {
-        "banned": false,
-        "expires": 0,
-        "note": "test"
-    },
     "linercit": {
         "banned": false,
         "expires": 0,
         "note": "linercit"
     },
     "skidisegs": {
+        "banned": false,
+        "expires": 0,
+        "note": "pindos"
+    },
+    "zcbzeo": {
         "banned": false,
         "expires": 0,
         "note": "pindos"
